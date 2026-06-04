@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Liga de Tochito</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0b0e14; --bg-card: #141820; --bg-elev: #1c2230; --border: #252d3d;
+      --text: #dce4f0; --text-mute: #6b7a99; --amber: #f59e0b; --green: #22c55e;
+      --red: #ef4444; --blue: #3b82f6; --r: 10px; --mono: monospace;
+    }
+    body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+    .app { max-width: 1100px; margin: 0 auto; padding: 28px 16px; }
+
+    /* Header */
+    .hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
+    .hdr h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+    .hdr h1 span { color: var(--amber); }
+    .nav-tabs { display: flex; gap: 4px; }
+    .tab { padding: 8px 18px; border-radius: 99px; border: 1px solid var(--border); background: transparent; color: var(--text-mute); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; transition: all .12s; }
+    .tab.active { background: var(--amber); color: #0b0e14; border-color: var(--amber); }
+
+    /* Cards */
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; margin-bottom: 16px; }
+    .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-mute); font-family: var(--mono); }
+
+    /* Tabla posiciones */
+    .pos-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .pos-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-mute); font-size: 10px; text-transform: uppercase; font-family: var(--mono); font-weight: 400; }
+    .pos-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
+    .pos-table tr:last-child td { border-bottom: none; }
+    .pos-table tr:hover td { background: var(--bg-elev); }
+    .pos-num { font-size: 11px; color: var(--text-mute); font-family: var(--mono); }
+    .pos-1 { color: var(--amber); font-weight: 700; }
+    .pos-2 { color: #94a3b8; }
+    .pos-3 { color: #92400e; }
+    .pts-val { font-weight: 800; font-size: 16px; font-family: var(--mono); }
+    .color-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; background: var(--border); }
+
+    /* Partidos */
+    .partido-card { background: var(--bg-elev); border-radius: var(--r); padding: 14px 16px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; }
+    .partido-equipo { font-size: 14px; font-weight: 600; }
+    .partido-equipo.visitante { text-align: right; }
+    .partido-marcador { text-align: center; font-family: var(--mono); font-weight: 800; font-size: 20px; }
+    .partido-meta { font-size: 11px; color: var(--text-mute); font-family: var(--mono); margin-top: 2px; text-align: center; }
+    .estado-badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; text-transform: uppercase; font-family: var(--mono); }
+    .estado-programado { background: rgba(59,130,246,.15); color: var(--blue); }
+    .estado-finalizado { background: rgba(34,197,94,.12); color: var(--green); }
+    .estado-cancelado { background: rgba(239,68,68,.12); color: var(--red); }
+
+    /* Jugadores */
+    .jug-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+    .jug-card { background: var(--bg-elev); border-radius: var(--r); padding: 12px; }
+    .jug-nombre { font-size: 14px; font-weight: 600; }
+    .jug-meta { font-size: 11px; color: var(--text-mute); font-family: var(--mono); margin-top: 3px; }
+    .jug-num { float: right; font-size: 22px; font-weight: 900; color: var(--amber); opacity: .6; font-family: var(--mono); }
+
+    /* Forms */
+    .form-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .input { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; padding: 7px 10px; font-family: var(--mono); transition: border .12s; }
+    .input:focus { outline: none; border-color: var(--amber); }
+    .select { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; padding: 7px 10px; font-family: var(--mono); }
+    .btn { padding: 8px 18px; border-radius: 6px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all .12s; }
+    .btn-amber { background: var(--amber); color: #0b0e14; }
+    .btn-amber:hover { background: #fbbf24; }
+    .btn-ghost { background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--amber); }
+    .btn-danger { background: rgba(239,68,68,.15); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+
+    /* Resultado inline */
+    .res-inline { display: flex; gap: 6px; align-items: center; }
+    .res-score { font-family: var(--mono); font-size: 18px; font-weight: 800; }
+    .res-vs { font-size: 11px; color: var(--text-mute); font-family: var(--mono); }
+
+    /* Equipos grid */
+    .eq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .eq-card { background: var(--bg-elev); border-radius: var(--r); padding: 16px; border-left: 4px solid var(--border); }
+    .eq-nombre { font-size: 16px; font-weight: 700; }
+    .eq-meta { font-size: 11px; color: var(--text-mute); font-family: var(--mono); margin-top: 4px; }
+    .eq-actions { display: flex; gap: 6px; margin-top: 10px; }
+
+    .empty { text-align: center; color: var(--text-mute); font-size: 13px; font-family: var(--mono); padding: 32px; }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* Modal */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 100; display: none; }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r); padding: 24px; width: 440px; max-width: 95vw; }
+    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+    .modal-grid label { display: flex; flex-direction: column; font-size: 11px; text-transform: uppercase; font-family: var(--mono); color: var(--text-mute); gap: 4px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <div class="hdr">
+    <h1>Liga de <span>Tochito</span></h1>
+    <div class="nav-tabs">
+      <button class="tab active" onclick="mostrar('tabla')">Tabla</button>
+      <button class="tab" onclick="mostrar('partidos')">Partidos</button>
+      <button class="tab" onclick="mostrar('equipos')">Equipos</button>
+      <button class="tab" onclick="mostrar('jugadores')">Jugadores</button>
+    </div>
+  </div>
+
+  <!-- TABLA POSICIONES -->
+  <div class="section active" id="sec-tabla">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Tabla de posiciones</span>
+        <button class="btn btn-ghost" onclick="cargarTabla()">Actualizar</button>
+      </div>
+      <table class="pos-table">
+        <thead>
+          <tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>GF</th><th>GC</th><th>DIF</th><th>PTS</th></tr>
+        </thead>
+        <tbody id="tabla-body"></tbody>
+      </table>
+      <div class="empty" id="tabla-empty" style="display:none">Sin equipos ni partidos registrados.</div>
+    </div>
+  </div>
+
+  <!-- PARTIDOS -->
+  <div class="section" id="sec-partidos">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Partidos</span>
+        <button class="btn btn-amber" onclick="abrirModalPartido()">+ Partido</button>
+      </div>
+      <div class="form-row">
+        <select class="select" id="filtro-estado-partido" onchange="cargarPartidos()">
+          <option value="">Todos los estados</option>
+          <option value="programado">Programados</option>
+          <option value="finalizado">Finalizados</option>
+          <option value="cancelado">Cancelados</option>
+        </select>
+      </div>
+      <div id="partidos-list"></div>
+    </div>
+  </div>
+
+  <!-- EQUIPOS -->
+  <div class="section" id="sec-equipos">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Equipos</span>
+        <button class="btn btn-amber" onclick="abrirModalEquipo()">+ Equipo</button>
+      </div>
+      <div class="eq-grid" id="equipos-grid"></div>
+      <div class="empty" id="equipos-empty" style="display:none">Sin equipos registrados.</div>
+    </div>
+  </div>
+
+  <!-- JUGADORES -->
+  <div class="section" id="sec-jugadores">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Jugadores</span>
+        <button class="btn btn-amber" onclick="abrirModalJugador()">+ Jugador</button>
+      </div>
+      <div class="form-row">
+        <select class="select" id="filtro-equipo-jugador" onchange="cargarJugadores()">
+          <option value="">Todos los equipos</option>
+        </select>
+      </div>
+      <div class="jug-grid" id="jugadores-grid"></div>
+      <div class="empty" id="jugadores-empty" style="display:none">Sin jugadores registrados.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modales -->
+<div class="modal-bg" id="modal-equipo">
+  <div class="modal">
+    <h3>Nuevo Equipo</h3>
+    <div class="modal-grid" style="grid-template-columns:1fr 1fr">
+      <label style="grid-column:1/-1">Nombre <input class="input" id="eq-nombre" placeholder="Los Toros" /></label>
+      <label>Categoria <select class="select" id="eq-categoria"><option value="mixto">Mixto</option><option value="varonil">Varonil</option><option value="femenil">Femenil</option></select></label>
+      <label>Color (hex) <input class="input" id="eq-color" placeholder="#f59e0b" /></label>
+      <label style="grid-column:1/-1">Capitan <input class="input" id="eq-capitan" placeholder="Nombre del capitan" /></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModales()">Cancelar</button>
+      <button class="btn btn-amber" onclick="crearEquipo()">Crear equipo</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-jugador">
+  <div class="modal">
+    <h3>Nuevo Jugador</h3>
+    <div class="modal-grid">
+      <label style="grid-column:1/-1">Nombre <input class="input" id="jug-nombre" placeholder="Juan Perez" /></label>
+      <label>Equipo <select class="select" id="jug-equipo"><option value="">Sin equipo</option></select></label>
+      <label>Posicion <select class="select" id="jug-posicion"><option value="">Libre</option><option value="QB">QB</option><option value="WR">WR</option><option value="RB">RB</option><option value="TE">TE</option><option value="C">Center</option><option value="LB">LB</option><option value="CB">CB</option><option value="S">Safety</option></select></label>
+      <label>Numero <input class="input" id="jug-numero" type="number" placeholder="7" /></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModales()">Cancelar</button>
+      <button class="btn btn-amber" onclick="crearJugador()">Agregar jugador</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-partido">
+  <div class="modal">
+    <h3>Nuevo Partido</h3>
+    <div class="modal-grid">
+      <label>Fecha <input class="input" id="par-fecha" type="date" /></label>
+      <label>Jornada <input class="input" id="par-jornada" type="number" value="1" min="1" /></label>
+      <label>Local <select class="select" id="par-local"><option value="">Seleccionar</option></select></label>
+      <label>Visitante <select class="select" id="par-visitante"><option value="">Seleccionar</option></select></label>
+      <label style="grid-column:1/-1">Cancha <input class="input" id="par-cancha" placeholder="Campo A" /></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModales()">Cancelar</button>
+      <button class="btn btn-amber" onclick="crearPartido()">Programar partido</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-resultado">
+  <div class="modal">
+    <h3 id="res-titulo">Registrar resultado</h3>
+    <div class="modal-grid">
+      <label id="res-local-label">Local <input class="input" id="res-local" type="number" value="0" min="0" /></label>
+      <label id="res-visitante-label">Visitante <input class="input" id="res-visitante" type="number" value="0" min="0" /></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModales()">Cancelar</button>
+      <button class="btn btn-amber" onclick="guardarResultado()">Guardar resultado</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let equipos = [], seccionActiva = 'tabla', partidoEditandoId = null
+
+// ── Navegacion ───────────────────────────────────────────────────────────────
+function mostrar(sec) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'))
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+  document.getElementById('sec-' + sec).classList.add('active')
+  event.target.classList.add('active')
+  seccionActiva = sec
+  if (sec === 'tabla') cargarTabla()
+  if (sec === 'partidos') cargarPartidos()
+  if (sec === 'equipos') cargarEquipos()
+  if (sec === 'jugadores') { cargarEquipos(); cargarJugadores() }
+}
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function get(url) { const r = await fetch(url); return r.json() }
+async function post(url, body) { const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); if (!r.ok) throw new Error(await r.text()); return r.json() }
+async function patch(url, body) { const r = await fetch(url, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); return r.json() }
+async function del(url) { return fetch(url, { method: 'DELETE' }) }
+
+// ── Tabla ────────────────────────────────────────────────────────────────────
+async function cargarTabla() {
+  const data = await get('/api/tabla/')
+  const tbody = document.getElementById('tabla-body')
+  const empty = document.getElementById('tabla-empty')
+  if (!data.length) { tbody.innerHTML = ''; empty.style.display = ''; return }
+  empty.style.display = 'none'
+  tbody.innerHTML = data.map((e, i) => {
+    const posClass = i === 0 ? 'pos-1' : i === 1 ? 'pos-2' : i === 2 ? 'pos-3' : ''
+    const dot = e.color ? `<span class="color-dot" style="background:${e.color}"></span>` : ''
+    return `<tr>
+      <td class="pos-num ${posClass}">${i+1}</td>
+      <td>${dot}<strong>${e.nombre}</strong><br><span style="font-size:10px;color:var(--text-mute)">${e.categoria} · Cap: ${e.capitan || '—'}</span></td>
+      <td class="pos-num">${e.pj}</td><td class="pos-num">${e.pg}</td><td class="pos-num">${e.pe}</td><td class="pos-num">${e.pp}</td>
+      <td class="pos-num">${e.gf}</td><td class="pos-num">${e.gc}</td>
+      <td class="pos-num" style="color:${e.dif > 0 ? 'var(--green)' : e.dif < 0 ? 'var(--red)' : 'inherit'}">${e.dif > 0 ? '+' : ''}${e.dif}</td>
+      <td><span class="pts-val" style="color:var(--amber)">${e.pts}</span></td>
+    </tr>`
+  }).join('')
+}
+
+// ── Partidos ──────────────────────────────────────────────────────────────────
+async function cargarPartidos() {
+  const estado = document.getElementById('filtro-estado-partido').value
+  const params = estado ? `?estado=${estado}` : ''
+  const data = await get('/api/partidos/' + params)
+  const list = document.getElementById('partidos-list')
+  if (!data.length) { list.innerHTML = '<div class="empty">Sin partidos.</div>'; return }
+  list.innerHTML = data.map(p => `
+    <div class="partido-card">
+      <div>
+        <div class="partido-equipo">${p.local_nombre || '—'}</div>
+        <div style="font-size:11px;color:var(--text-mute);font-family:var(--mono)">Local</div>
+      </div>
+      <div>
+        <div class="partido-marcador">${p.estado === 'finalizado' ? `${p.goles_local} - ${p.goles_visitante}` : 'vs'}</div>
+        <div class="partido-meta">
+          <span class="estado-badge estado-${p.estado}">${p.estado}</span><br>
+          ${p.fecha} · J${p.jornada} · ${p.cancha || 'Sin cancha'}<br>
+          ${p.estado === 'programado' ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;margin-top:6px" onclick="abrirResultado('${p.id}','${p.local_nombre}','${p.visitante_nombre}')">Registrar resultado</button>` : ''}
+        </div>
+      </div>
+      <div>
+        <div class="partido-equipo visitante">${p.visitante_nombre || '—'}</div>
+        <div style="font-size:11px;color:var(--text-mute);font-family:var(--mono);text-align:right">Visitante</div>
+      </div>
+    </div>
+  `).join('')
+}
+
+// ── Equipos ───────────────────────────────────────────────────────────────────
+async function cargarEquipos() {
+  equipos = await get('/api/equipos/')
+  const grid = document.getElementById('equipos-grid')
+  const empty = document.getElementById('equipos-empty')
+  if (!equipos.length) { grid.innerHTML = ''; empty.style.display = ''; }
+  else {
+    empty.style.display = 'none'
+    grid.innerHTML = equipos.map(e => `
+      <div class="eq-card" style="border-left-color:${e.color || 'var(--border)'}">
+        <div class="eq-nombre">${e.nombre}</div>
+        <div class="eq-meta">${e.categoria} · ${e.capitan || 'Sin capitan'}</div>
+        <div class="eq-actions">
+          <button class="btn btn-danger" style="font-size:11px;padding:4px 10px" onclick="eliminarEquipo('${e.id}')">Eliminar</button>
+        </div>
+      </div>
+    `).join('')
+  }
+  // Actualizar selects
+  const selectores = ['par-local','par-visitante','jug-equipo','filtro-equipo-jugador']
+  selectores.forEach(id => {
+    const el = document.getElementById(id)
+    if (!el) return
+    const val = el.value
+    const base = id === 'filtro-equipo-jugador' ? '<option value="">Todos los equipos</option>' : '<option value="">Seleccionar</option>'
+    el.innerHTML = base + equipos.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('')
+    if (val) el.value = val
+  })
+}
+
+async function cargarJugadores() {
+  const equipo = document.getElementById('filtro-equipo-jugador')?.value || ''
+  const data = await get('/api/jugadores/' + (equipo ? `?equipo_id=${equipo}` : ''))
+  const grid = document.getElementById('jugadores-grid')
+  const empty = document.getElementById('jugadores-empty')
+  if (!data.length) { grid.innerHTML = ''; empty.style.display = ''; return }
+  empty.style.display = 'none'
+  grid.innerHTML = data.map(j => `
+    <div class="jug-card">
+      ${j.numero ? `<span class="jug-num">${j.numero}</span>` : ''}
+      <div class="jug-nombre">${j.nombre}</div>
+      <div class="jug-meta">${j.posicion || 'Libre'} · ${j.equipo_nombre || 'Sin equipo'}</div>
+    </div>
+  `).join('')
+}
+
+// ── Modales ───────────────────────────────────────────────────────────────────
+function abrirModalEquipo() { document.getElementById('modal-equipo').classList.add('open') }
+function abrirModalJugador() { cargarEquipos(); document.getElementById('modal-jugador').classList.add('open') }
+function abrirModalPartido() { cargarEquipos(); document.getElementById('par-fecha').value = new Date().toISOString().slice(0,10); document.getElementById('modal-partido').classList.add('open') }
+function abrirResultado(id, local, visitante) {
+  partidoEditandoId = id
+  document.getElementById('res-titulo').textContent = `Resultado: ${local} vs ${visitante}`
+  document.getElementById('res-local-label').firstChild.textContent = local + ' '
+  document.getElementById('res-visitante-label').firstChild.textContent = visitante + ' '
+  document.getElementById('modal-resultado').classList.add('open')
+}
+function cerrarModales() { document.querySelectorAll('.modal-bg').forEach(m => m.classList.remove('open')) }
+
+async function crearEquipo() {
+  const nombre = document.getElementById('eq-nombre').value.trim()
+  if (!nombre) return alert('El nombre es obligatorio')
+  await post('/api/equipos/', { nombre, categoria: document.getElementById('eq-categoria').value, color: document.getElementById('eq-color').value, capitan: document.getElementById('eq-capitan').value })
+  cerrarModales()
+  cargarEquipos()
+  if (seccionActiva === 'tabla') cargarTabla()
+}
+
+async function crearJugador() {
+  const nombre = document.getElementById('jug-nombre').value.trim()
+  if (!nombre) return alert('El nombre es obligatorio')
+  await post('/api/jugadores/', { nombre, equipo_id: document.getElementById('jug-equipo').value || null, posicion: document.getElementById('jug-posicion').value, numero: parseInt(document.getElementById('jug-numero').value) || null })
+  cerrarModales()
+  cargarJugadores()
+}
+
+async function crearPartido() {
+  const local = document.getElementById('par-local').value
+  const visitante = document.getElementById('par-visitante').value
+  const fecha = document.getElementById('par-fecha').value
+  if (!local || !visitante || !fecha) return alert('Local, visitante y fecha son obligatorios')
+  if (local === visitante) return alert('El equipo local y visitante no pueden ser el mismo')
+  await post('/api/partidos/', { fecha, equipo_local_id: local, equipo_visitante_id: visitante, cancha: document.getElementById('par-cancha').value, jornada: parseInt(document.getElementById('par-jornada').value) || 1 })
+  cerrarModales()
+  cargarPartidos()
+}
+
+async function guardarResultado() {
+  if (!partidoEditandoId) return
+  await patch(`/api/partidos/${partidoEditandoId}/resultado`, { goles_local: parseInt(document.getElementById('res-local').value) || 0, goles_visitante: parseInt(document.getElementById('res-visitante').value) || 0, estado: 'finalizado' })
+  cerrarModales()
+  cargarPartidos()
+  if (seccionActiva === 'tabla') cargarTabla()
+}
+
+async function eliminarEquipo(id) {
+  if (!confirm('Eliminar equipo?')) return
+  await del(`/api/equipos/${id}`)
+  cargarEquipos()
+}
+
+// Init
+cargarTabla()
+</script>
+</body>
+</html>
