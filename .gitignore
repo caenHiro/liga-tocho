@@ -1,12 +1,6 @@
+liga.db
 .venv/
 __pycache__/
 *.pyc
-*.pyo
-*.db
-*.db-shm
-*.db-wal
-dist/
 *.egg-info/
 .pytest_cache/
-logs/
-*.log
