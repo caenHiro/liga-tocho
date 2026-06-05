@@ -104,6 +104,21 @@
     .r-tarde { background: rgba(34,197,94,.12); color: var(--green); }
     .r-libre { background: rgba(255,255,255,.06); color: var(--text-mute); }
 
+    /* Admin panel */
+    .admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .admin-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r); padding: 18px; }
+    .admin-card-title { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-mute); font-family: var(--mono); margin-bottom: 14px; }
+    .reg-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .reg-table th { text-align: left; padding: 5px 8px; color: var(--text-mute); font-size: 10px; text-transform: uppercase; font-family: var(--mono); border-bottom: 1px solid var(--border); }
+    .reg-table td { padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,.03); vertical-align: middle; }
+    .reg-table tr:last-child td { border-bottom: none; }
+    .cat-badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: var(--mono); background: rgba(245,158,11,.12); color: var(--amber); }
+    .div-badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-family: var(--mono); background: rgba(255,255,255,.06); color: var(--text-mute); }
+    .admin-form-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: flex-end; }
+    .admin-form-row label { display: flex; flex-direction: column; gap: 3px; font-size: 10px; text-transform: uppercase; font-family: var(--mono); color: var(--text-mute); }
+    .qb-list { display: flex; flex-direction: column; gap: 6px; }
+    .qb-item { background: var(--bg-elev); border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+
     /* Modal */
     .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 100; display: none; }
     .modal-bg.open { display: flex; }
@@ -141,6 +156,7 @@
       <button class="tab" onclick="mostrar('equipos')">Equipos</button>
       <button class="tab" onclick="mostrar('jugadores')">Jugadores</button>
       <button class="tab" id="tab-qb" style="display:none" onclick="mostrar('qb')">Mi Equipo</button>
+      <button class="tab" id="tab-admin" style="display:none" onclick="mostrar('admin')">Admin</button>
     </div>
   </div>
 
@@ -209,6 +225,91 @@
     </div>
   </div>
 
+  <!-- ADMIN PANEL -->
+  <div class="section" id="sec-admin">
+
+    <!-- Temporadas -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head">
+        <span class="card-title">Temporadas</span>
+        <button class="btn btn-amber" onclick="abrirModalTempAdmin()">+ Temporada</button>
+      </div>
+      <table class="reg-table" id="admin-temps-table">
+        <thead><tr><th>Nombre</th><th>Año</th><th>T</th><th>Estado</th><th>Jornadas</th><th></th></tr></thead>
+        <tbody id="admin-temps-body"></tbody>
+      </table>
+    </div>
+
+    <div class="admin-grid">
+
+      <!-- Registros por categoría -->
+      <div class="admin-card" style="grid-column: 1/-1">
+        <div class="admin-card-title">Registros — Equipos inscritos por categoría/división</div>
+        <div class="admin-form-row" style="margin-bottom:14px">
+          <label>Temporada
+            <select class="select" id="admin-temp-sel" onchange="cargarRegistrosAdmin()">
+              <option value="">Seleccionar temporada</option>
+            </select>
+          </label>
+          <button class="btn btn-amber" onclick="abrirModalRegistro()">+ Inscribir equipo</button>
+        </div>
+        <table class="reg-table">
+          <thead><tr><th>Equipo</th><th>Cat</th><th>Div</th><th>Capitán</th><th>Horario</th><th>Jugadores</th><th></th></tr></thead>
+          <tbody id="admin-regs-body"></tbody>
+        </table>
+        <div class="empty" id="admin-regs-empty" style="display:none">Sin registros para esta temporada.</div>
+      </div>
+
+      <!-- Generar calendario -->
+      <div class="admin-card">
+        <div class="admin-card-title">Generar Calendario (fixture)</div>
+        <div class="admin-form-row">
+          <label>Temporada
+            <select class="select" id="cal-temp-sel" style="min-width:160px">
+              <option value="">Seleccionar</option>
+            </select>
+          </label>
+        </div>
+        <div class="admin-form-row">
+          <label>Canchas mañana <input class="input" id="cal-manana" type="number" value="1" min="1" max="5" style="width:60px" /></label>
+          <label>Canchas mediodía <input class="input" id="cal-mediodia" type="number" value="1" min="1" max="5" style="width:60px" /></label>
+          <label>Canchas tarde <input class="input" id="cal-tarde" type="number" value="1" min="1" max="5" style="width:60px" /></label>
+        </div>
+        <div class="admin-form-row">
+          <button class="btn btn-amber" onclick="generarCalendario()">Generar fixture</button>
+          <button class="btn btn-ghost" onclick="limpiarCalendario()">Limpiar</button>
+        </div>
+        <div id="cal-resultado" style="font-size:11px;font-family:var(--mono);color:var(--text-mute);margin-top:8px"></div>
+      </div>
+
+      <!-- QB Users -->
+      <div class="admin-card">
+        <div class="admin-card-title">QB por equipo — Acceso al portal</div>
+        <div class="admin-form-row" style="margin-bottom:10px">
+          <label>Temporada
+            <select class="select" id="qb-reg-temp-sel" onchange="cargarRegsParaQB()" style="min-width:140px">
+              <option value="">Seleccionar</option>
+            </select>
+          </label>
+        </div>
+        <div class="qb-list" id="qb-users-list">
+          <div class="empty" style="padding:16px">Selecciona temporada para ver equipos</div>
+        </div>
+      </div>
+
+      <!-- Canchas -->
+      <div class="admin-card">
+        <div class="admin-card-title">Canchas</div>
+        <div class="admin-form-row">
+          <label style="flex:1">Nombre <input class="input" id="cancha-nombre" placeholder="Campo A" style="width:100%" /></label>
+          <button class="btn btn-amber" style="margin-top:auto" onclick="crearCanchaAdmin()">+ Cancha</button>
+        </div>
+        <div id="canchas-list" class="qb-list"></div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- QB / MI EQUIPO -->
   <div class="section" id="sec-qb">
     <div class="card">
@@ -236,6 +337,81 @@
     </div>
   </div>
 
+</div>
+
+<!-- Modal Temporada Admin -->
+<div class="modal-bg" id="modal-temp-admin">
+  <div class="modal">
+    <h3>Nueva Temporada</h3>
+    <div class="modal-grid">
+      <label style="grid-column:1/-1">Nombre <input class="input" id="ta-nombre" placeholder="Primavera 2026" /></label>
+      <label>Año <input class="input" id="ta-anio" type="number" value="2026" /></label>
+      <label>Número (1-4) <input class="input" id="ta-num" type="number" value="1" min="1" max="4" /></label>
+      <label>Inicio <input class="input" id="ta-inicio" type="date" /></label>
+      <label>Fin <input class="input" id="ta-fin" type="date" /></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModales()">Cancelar</button>
+      <button class="btn btn-amber" onclick="crearTemporadaAdmin()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Registro (inscribir equipo en cat/div/temp) -->
+<div class="modal-bg" id="modal-registro">
+  <div class="modal">
+    <h3>Inscribir Equipo</h3>
+    <div class="modal-grid">
+      <label style="grid-column:1/-1">Equipo
+        <select class="select" id="reg-equipo-sel">
+          <option value="">Seleccionar equipo</option>
+        </select>
+      </label>
+      <label>Categoría
+        <select class="select" id="reg-cat">
+          <option value="A">A</option><option value="B">B</option>
+          <option value="C">C</option><option value="D">D</option>
+          <option value="E">E</option><option value="F">F</option>
+        </select>
+      </label>
+      <label>División
+        <select class="select" id="reg-div">
+          <option value="varonil">Varonil</option>
+          <option value="mixto">Mixto</option>
+          <option value="femenino">Femenino</option>
+        </select>
+      </label>
+      <label>Capitán <input class="input" id="reg-capitan" placeholder="Nombre QB/Capitán" /></label>
+      <label>Horario preferido
+        <select class="select" id="reg-horario">
+          <option value="sin_restriccion">Sin restricción</option>
+          <option value="manana">Mañana</option>
+          <option value="mediodia">Mediodía</option>
+          <option value="tarde">Tarde</option>
+        </select>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModales()">Cancelar</button>
+      <button class="btn btn-amber" onclick="crearRegistro()">Inscribir</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal crear QB para registro -->
+<div class="modal-bg" id="modal-crear-qb">
+  <div class="modal">
+    <h3 id="crear-qb-titulo">Crear acceso QB</h3>
+    <div class="modal-grid">
+      <label>Usuario <input class="input" id="qb-username" placeholder="equipo_alfa" /></label>
+      <label>Contraseña <input class="input" id="qb-password" type="password" placeholder="••••••" /></label>
+    </div>
+    <div id="qb-create-registro-id" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cerrarModales()">Cancelar</button>
+      <button class="btn btn-amber" onclick="crearQBUser()">Crear acceso QB</button>
+    </div>
+  </div>
 </div>
 
 <!-- Modales -->
@@ -352,16 +528,19 @@ function actualizarUIAuth() {
   const formArea = document.getElementById('login-form-area')
   const userArea = document.getElementById('login-user-area')
   const tabQB    = document.getElementById('tab-qb')
+  const tabAdmin = document.getElementById('tab-admin')
   if (authUser) {
     formArea.style.display = 'none'
     userArea.style.display = 'flex'
     document.getElementById('user-name').textContent = authUser.username
     document.getElementById('user-rol').textContent = authUser.rol
-    tabQB.style.display = (authUser.rol === 'qb' || authUser.rol === 'admin') ? '' : 'none'
+    tabQB.style.display    = (authUser.rol === 'qb' || authUser.rol === 'admin') ? '' : 'none'
+    tabAdmin.style.display = authUser.rol === 'admin' ? '' : 'none'
   } else {
     formArea.style.display = ''
     userArea.style.display = 'none'
-    tabQB.style.display = 'none'
+    tabQB.style.display    = 'none'
+    tabAdmin.style.display = 'none'
   }
 }
 
@@ -377,6 +556,7 @@ function mostrar(sec) {
   if (sec === 'equipos') cargarEquipos()
   if (sec === 'jugadores') { cargarEquipos(); cargarJugadores() }
   if (sec === 'qb') { cargarMiEquipo(); cargarTemporadasQB() }
+  if (sec === 'admin') { cargarAdminPanel() }
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────────
@@ -551,6 +731,231 @@ async function eliminarEquipo(id) {
   if (!confirm('Eliminar equipo?')) return
   await del(`/api/equipos/${id}`)
   cargarEquipos()
+}
+
+// ── Admin panel ───────────────────────────────────────────────────────────────
+let _adminRegistroId = null
+
+async function cargarAdminPanel() {
+  await cargarTemporadasAdmin()
+  await cargarCanchasAdmin()
+}
+
+async function cargarTemporadasAdmin() {
+  const temps = await get('/api/temporadas/')
+  const body = document.getElementById('admin-temps-body')
+  body.innerHTML = temps.map(t => `
+    <tr>
+      <td class="mono">${t.nombre}</td>
+      <td class="mono">${t.anio}</td>
+      <td class="mono">T${t.numero}</td>
+      <td><span class="cat-badge">${t.estado}</span></td>
+      <td class="mono">${t.n_jornadas ?? 11}</td>
+      <td>
+        ${t.estado === 'activa'
+          ? `<button class="btn btn-ghost" style="font-size:10px;padding:3px 8px" onclick="cambiarEstadoTemp(${t.id},'finalizada')">Finalizar</button>`
+          : `<button class="btn btn-ghost" style="font-size:10px;padding:3px 8px" onclick="cambiarEstadoTemp(${t.id},'activa')">Activar</button>`}
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" class="empty" style="padding:16px">Sin temporadas.</td></tr>'
+
+  // Poblar selects de temporada en admin
+  const opts = '<option value="">Seleccionar</option>' + temps.map(t =>
+    `<option value="${t.id}">${t.nombre} (${t.anio}-T${t.numero}) · ${t.estado}</option>`).join('')
+  ;['admin-temp-sel','cal-temp-sel','qb-reg-temp-sel'].forEach(id => {
+    const el = document.getElementById(id)
+    if (el) el.innerHTML = opts
+  })
+  // Auto-select temporada activa
+  const activa = temps.find(t => t.estado === 'activa')
+  if (activa) {
+    ;['admin-temp-sel','cal-temp-sel','qb-reg-temp-sel'].forEach(id => {
+      const el = document.getElementById(id)
+      if (el) el.value = activa.id
+    })
+    cargarRegistrosAdmin()
+  }
+}
+
+async function cambiarEstadoTemp(id, estado) {
+  await patch(`/api/temporadas/${id}/estado?estado=${estado}`, {})
+  cargarTemporadasAdmin()
+}
+
+function abrirModalTempAdmin() { document.getElementById('modal-temp-admin').classList.add('open') }
+
+async function crearTemporadaAdmin() {
+  const nombre = document.getElementById('ta-nombre').value.trim()
+  if (!nombre) return alert('Nombre obligatorio')
+  try {
+    await post('/api/temporadas/', {
+      nombre,
+      anio: parseInt(document.getElementById('ta-anio').value) || new Date().getFullYear(),
+      numero: parseInt(document.getElementById('ta-num').value) || 1,
+      fecha_inicio: document.getElementById('ta-inicio').value || null,
+      fecha_fin: document.getElementById('ta-fin').value || null,
+    })
+    cerrarModales(); cargarTemporadasAdmin()
+  } catch(e) { alert(e.message) }
+}
+
+async function cargarRegistrosAdmin() {
+  const tid = document.getElementById('admin-temp-sel')?.value
+  const body = document.getElementById('admin-regs-body')
+  const empty = document.getElementById('admin-regs-empty')
+  if (!tid) { body.innerHTML = ''; empty.style.display = ''; return }
+  const regs = await get(`/api/registros/?temporada_id=${tid}`)
+  if (!regs.length) { body.innerHTML = ''; empty.style.display = ''; return }
+  empty.style.display = 'none'
+  body.innerHTML = regs.map(r => `
+    <tr>
+      <td><strong>${r.equipo_nombre}</strong></td>
+      <td><span class="cat-badge">${r.categoria}</span></td>
+      <td><span class="div-badge">${r.division}</span></td>
+      <td class="mono" style="font-size:11px">${r.capitan || '—'}</td>
+      <td class="mono" style="font-size:11px">${r.preferencia_horario || 'libre'}</td>
+      <td class="mono" style="text-align:center">${r.n_jugadores ?? 0}</td>
+      <td>
+        <button class="btn btn-ghost" style="font-size:10px;padding:3px 8px"
+          onclick="abrirCrearQB(${r.id},'${r.equipo_nombre}')">QB</button>
+        <button class="btn btn-danger" style="font-size:10px;padding:3px 8px"
+          onclick="eliminarRegistro(${r.id})">✕</button>
+      </td>
+    </tr>
+  `).join('')
+}
+
+function abrirModalRegistro() {
+  // Poblar equipos en el select
+  get('/api/equipos/').then(eqs => {
+    const sel = document.getElementById('reg-equipo-sel')
+    sel.innerHTML = '<option value="">Seleccionar equipo</option>' +
+      eqs.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('')
+  })
+  document.getElementById('modal-registro').classList.add('open')
+}
+
+async function crearRegistro() {
+  const tid = document.getElementById('admin-temp-sel')?.value
+  const eid = document.getElementById('reg-equipo-sel').value
+  if (!tid || !eid) return alert('Selecciona temporada y equipo')
+  try {
+    await post('/api/registros/', {
+      temporada_id: parseInt(tid),
+      equipo_id: parseInt(eid),
+      categoria: document.getElementById('reg-cat').value,
+      division: document.getElementById('reg-div').value,
+      capitan: document.getElementById('reg-capitan').value.trim(),
+      preferencia_horario: document.getElementById('reg-horario').value,
+    })
+    cerrarModales(); cargarRegistrosAdmin()
+  } catch(e) { alert(e.message) }
+}
+
+async function eliminarRegistro(rid) {
+  if (!confirm('Eliminar inscripción?')) return
+  await del(`/api/registros/${rid}`)
+  cargarRegistrosAdmin()
+}
+
+// QB Users
+async function cargarRegsParaQB() {
+  const tid = document.getElementById('qb-reg-temp-sel')?.value
+  const list = document.getElementById('qb-users-list')
+  if (!tid) { list.innerHTML = '<div class="empty" style="padding:16px">Selecciona temporada</div>'; return }
+  const regs = await get(`/api/registros/?temporada_id=${tid}`)
+  const users = await get('/api/auth/usuarios').catch(() => [])
+  const usersByReg = {}
+  users.filter(u => u.rol === 'qb').forEach(u => { usersByReg[u.registro_id] = u.username })
+  list.innerHTML = regs.map(r => `
+    <div class="qb-item">
+      <div>
+        <strong>${r.equipo_nombre}</strong>
+        <span class="cat-badge" style="margin-left:6px">${r.categoria}</span>
+        <span class="div-badge" style="margin-left:4px">${r.division}</span>
+      </div>
+      <div>
+        ${usersByReg[r.id]
+          ? `<span class="mono" style="font-size:11px;color:var(--green)">@${usersByReg[r.id]}</span>`
+          : `<button class="btn btn-amber" style="font-size:10px;padding:3px 10px"
+              onclick="abrirCrearQB(${r.id},'${r.equipo_nombre}')">+ QB</button>`}
+      </div>
+    </div>
+  `).join('') || '<div class="empty" style="padding:16px">Sin equipos.</div>'
+}
+
+function abrirCrearQB(registroId, nombre) {
+  _adminRegistroId = registroId
+  document.getElementById('crear-qb-titulo').textContent = `Crear QB — ${nombre}`
+  document.getElementById('qb-username').value = ''
+  document.getElementById('qb-password').value = ''
+  document.getElementById('modal-crear-qb').classList.add('open')
+}
+
+async function crearQBUser() {
+  const username = document.getElementById('qb-username').value.trim()
+  const password = document.getElementById('qb-password').value
+  if (!username || !password) return alert('Usuario y contraseña obligatorios')
+  if (!_adminRegistroId) return alert('No hay registro seleccionado')
+  try {
+    await post(`/api/qb/asignar/${_adminRegistroId}`, { username, password, rol: 'qb' })
+    cerrarModales(); cargarRegsParaQB(); cargarRegistrosAdmin()
+    alert(`QB @${username} creado. Ya puede iniciar sesión.`)
+  } catch(e) { alert(e.message) }
+}
+
+// Canchas
+async function cargarCanchasAdmin() {
+  const data = await get('/api/canchas/')
+  const list = document.getElementById('canchas-list')
+  list.innerHTML = data.map(c => `
+    <div class="qb-item">
+      <span class="mono">${c.nombre}</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:10px;color:${c.activa ? 'var(--green)' : 'var(--text-mute)'}">${c.activa ? 'Activa' : 'Inactiva'}</span>
+        <button class="btn btn-danger" style="font-size:10px;padding:2px 8px" onclick="eliminarCancha(${c.id})">✕</button>
+      </div>
+    </div>
+  `).join('') || '<div class="empty" style="padding:16px">Sin canchas registradas.</div>'
+}
+
+async function crearCanchaAdmin() {
+  const nombre = document.getElementById('cancha-nombre').value.trim()
+  if (!nombre) return alert('Nombre obligatorio')
+  await post('/api/canchas/', { nombre })
+  document.getElementById('cancha-nombre').value = ''
+  cargarCanchasAdmin()
+}
+
+async function eliminarCancha(id) {
+  if (!confirm('Eliminar cancha?')) return
+  await del(`/api/canchas/${id}`)
+  cargarCanchasAdmin()
+}
+
+// Calendario
+async function generarCalendario() {
+  const tid = document.getElementById('cal-temp-sel').value
+  if (!tid) return alert('Selecciona una temporada')
+  const res = document.getElementById('cal-resultado')
+  res.textContent = 'Generando...'
+  try {
+    const data = await post('/api/calendario/generar', {
+      temporada_id: parseInt(tid),
+      canchas_manana: parseInt(document.getElementById('cal-manana').value) || 1,
+      canchas_mediodia: parseInt(document.getElementById('cal-mediodia').value) || 1,
+      canchas_tarde: parseInt(document.getElementById('cal-tarde').value) || 1,
+    })
+    res.textContent = `Generados: ${data.partidos_generados} partidos. ${data.advertencias?.length ? 'Avisos: ' + data.advertencias.join(' | ') : 'Sin advertencias.'}`
+    res.style.color = 'var(--green)'
+  } catch(e) { res.textContent = 'Error: ' + e.message; res.style.color = 'var(--red)' }
+}
+
+async function limpiarCalendario() {
+  const tid = document.getElementById('cal-temp-sel').value
+  if (!tid || !confirm('Eliminar todos los partidos de esta temporada?')) return
+  await del(`/api/calendario/temporada/${tid}`)
+  document.getElementById('cal-resultado').textContent = 'Calendario limpiado.'
 }
 
 // ── QB — Mi equipo y restricciones de jornada ─────────────────────────────────
