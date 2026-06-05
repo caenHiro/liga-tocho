@@ -86,6 +86,24 @@
     .section { display: none; }
     .section.active { display: block; }
 
+    /* Login bar */
+    .login-bar { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 8px 16px; display: flex; justify-content: flex-end; align-items: center; gap: 10px; font-size: 12px; }
+    .login-bar .user-chip { background: rgba(245,158,11,.1); color: var(--amber); border: 1px solid rgba(245,158,11,.2); border-radius: 99px; padding: 3px 10px; font-family: var(--mono); font-size: 11px; }
+    .login-bar .rol-chip { font-size: 10px; color: var(--text-mute); font-family: var(--mono); text-transform: uppercase; }
+    .login-form { display: flex; gap: 6px; align-items: center; }
+    .login-form .input { padding: 5px 8px; font-size: 12px; width: 120px; }
+
+    /* QB panel */
+    .jornada-list { display: flex; flex-direction: column; gap: 8px; }
+    .jornada-item { background: var(--bg-elev); border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+    .jornada-num { font-family: var(--mono); font-weight: 700; color: var(--amber); font-size: 14px; }
+    .jornada-fecha { font-size: 11px; color: var(--text-mute); font-family: var(--mono); }
+    .restriccion-badge { font-size: 10px; padding: 2px 8px; border-radius: 99px; font-family: var(--mono); text-transform: uppercase; }
+    .r-manana { background: rgba(245,158,11,.15); color: var(--amber); }
+    .r-mediodia { background: rgba(59,130,246,.15); color: var(--blue); }
+    .r-tarde { background: rgba(34,197,94,.12); color: var(--green); }
+    .r-libre { background: rgba(255,255,255,.06); color: var(--text-mute); }
+
     /* Modal */
     .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 100; display: none; }
     .modal-bg.open { display: flex; }
@@ -97,6 +115,22 @@
   </style>
 </head>
 <body>
+<!-- Login bar -->
+<div class="login-bar" id="login-bar">
+  <div id="login-form-area">
+    <form class="login-form" onsubmit="hacerLogin(event)">
+      <input class="input" id="l-user" placeholder="usuario" autocomplete="username" />
+      <input class="input" id="l-pass" type="password" placeholder="contraseña" autocomplete="current-password" />
+      <button class="btn btn-amber" type="submit" style="padding:5px 14px;font-size:12px">Entrar</button>
+    </form>
+  </div>
+  <div id="login-user-area" style="display:none;align-items:center;gap:8px">
+    <span class="rol-chip" id="user-rol"></span>
+    <span class="user-chip" id="user-name"></span>
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="hacerLogout()">Salir</button>
+  </div>
+</div>
+
 <div class="app">
 
   <div class="hdr">
@@ -106,6 +140,7 @@
       <button class="tab" onclick="mostrar('partidos')">Partidos</button>
       <button class="tab" onclick="mostrar('equipos')">Equipos</button>
       <button class="tab" onclick="mostrar('jugadores')">Jugadores</button>
+      <button class="tab" id="tab-qb" style="display:none" onclick="mostrar('qb')">Mi Equipo</button>
     </div>
   </div>
 
@@ -174,6 +209,33 @@
     </div>
   </div>
 
+  <!-- QB / MI EQUIPO -->
+  <div class="section" id="sec-qb">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title" id="qb-equipo-titulo">Mi Equipo</span>
+        <button class="btn btn-ghost" onclick="cargarMiEquipo()">Actualizar</button>
+      </div>
+      <div id="qb-roster">
+        <div class="empty">Cargando...</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <span class="card-title">Restricciones por jornada</span>
+        <div style="font-size:11px;color:var(--text-mute);font-family:var(--mono)">Pide tu franja horaria preferida para cada jornada</div>
+      </div>
+      <div class="form-row" style="margin-bottom:12px">
+        <select class="select" id="qb-temporada-sel" onchange="cargarMisJornadas()">
+          <option value="">Selecciona temporada</option>
+        </select>
+      </div>
+      <div class="jornada-list" id="qb-jornadas-list">
+        <div class="empty">Selecciona una temporada para ver las jornadas.</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- Modales -->
@@ -197,10 +259,24 @@
   <div class="modal">
     <h3>Nuevo Jugador</h3>
     <div class="modal-grid">
-      <label style="grid-column:1/-1">Nombre <input class="input" id="jug-nombre" placeholder="Juan Perez" /></label>
-      <label>Equipo <select class="select" id="jug-equipo"><option value="">Sin equipo</option></select></label>
-      <label>Posicion <select class="select" id="jug-posicion"><option value="">Libre</option><option value="QB">QB</option><option value="WR">WR</option><option value="RB">RB</option><option value="TE">TE</option><option value="C">Center</option><option value="LB">LB</option><option value="CB">CB</option><option value="S">Safety</option></select></label>
-      <label>Numero <input class="input" id="jug-numero" type="number" placeholder="7" /></label>
+      <label style="grid-column:1/-1">Nombre completo <input class="input" id="jug-nombre" placeholder="Juan Pérez" /></label>
+      <label>Posición principal
+        <select class="select" id="jug-posicion-principal">
+          <option value="">Libre</option>
+          <option value="QB">QB — Quarterback</option>
+          <option value="WR">WR — Receiver</option>
+          <option value="RB">RB — Running Back</option>
+          <option value="TE">TE — Tight End</option>
+          <option value="C">C — Center</option>
+          <option value="LB">LB — Linebacker</option>
+          <option value="CB">CB — Cornerback</option>
+          <option value="S">S — Safety</option>
+          <option value="KR">KR — Kick Returner</option>
+        </select>
+      </label>
+      <label>Número de camiseta <input class="input" id="jug-numero-camiseta" type="number" placeholder="7" min="1" max="99" /></label>
+      <label>Teléfono <input class="input" id="jug-telefono" placeholder="55 1234 5678" /></label>
+      <label>Notas <input class="input" id="jug-notas" placeholder="Observaciones..." /></label>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="cerrarModales()">Cancelar</button>
@@ -242,6 +318,52 @@
 
 <script>
 let equipos = [], seccionActiva = 'tabla', partidoEditandoId = null
+let authToken = localStorage.getItem('liga_token') || null
+let authUser = JSON.parse(localStorage.getItem('liga_user') || 'null')
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function _authHeaders() {
+  return authToken ? {'Content-Type':'application/json','Authorization':'Bearer '+authToken} : {'Content-Type':'application/json'}
+}
+
+async function hacerLogin(e) {
+  e.preventDefault()
+  const username = document.getElementById('l-user').value.trim()
+  const password = document.getElementById('l-pass').value
+  try {
+    const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, password}) })
+    if (!r.ok) { alert('Usuario o contraseña incorrectos'); return }
+    const data = await r.json()
+    authToken = data.token; authUser = data
+    localStorage.setItem('liga_token', authToken)
+    localStorage.setItem('liga_user', JSON.stringify(authUser))
+    actualizarUIAuth()
+  } catch(err) { alert('Error de conexión') }
+}
+
+async function hacerLogout() {
+  if (authToken) await fetch('/api/auth/logout', { method:'POST', headers: {'Authorization':'Bearer '+authToken} }).catch(()=>{})
+  authToken = null; authUser = null
+  localStorage.removeItem('liga_token'); localStorage.removeItem('liga_user')
+  actualizarUIAuth()
+}
+
+function actualizarUIAuth() {
+  const formArea = document.getElementById('login-form-area')
+  const userArea = document.getElementById('login-user-area')
+  const tabQB    = document.getElementById('tab-qb')
+  if (authUser) {
+    formArea.style.display = 'none'
+    userArea.style.display = 'flex'
+    document.getElementById('user-name').textContent = authUser.username
+    document.getElementById('user-rol').textContent = authUser.rol
+    tabQB.style.display = (authUser.rol === 'qb' || authUser.rol === 'admin') ? '' : 'none'
+  } else {
+    formArea.style.display = ''
+    userArea.style.display = 'none'
+    tabQB.style.display = 'none'
+  }
+}
 
 // ── Navegacion ───────────────────────────────────────────────────────────────
 function mostrar(sec) {
@@ -254,13 +376,24 @@ function mostrar(sec) {
   if (sec === 'partidos') cargarPartidos()
   if (sec === 'equipos') cargarEquipos()
   if (sec === 'jugadores') { cargarEquipos(); cargarJugadores() }
+  if (sec === 'qb') { cargarMiEquipo(); cargarTemporadasQB() }
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────────
-async function get(url) { const r = await fetch(url); return r.json() }
-async function post(url, body) { const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); if (!r.ok) throw new Error(await r.text()); return r.json() }
-async function patch(url, body) { const r = await fetch(url, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); return r.json() }
-async function del(url) { return fetch(url, { method: 'DELETE' }) }
+async function get(url) {
+  const r = await fetch(url, { headers: authToken ? {'Authorization':'Bearer '+authToken} : {} })
+  return r.json()
+}
+async function post(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: _authHeaders(), body: JSON.stringify(body) })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+async function patch(url, body) {
+  const r = await fetch(url, { method: 'PATCH', headers: _authHeaders(), body: JSON.stringify(body) })
+  return r.json()
+}
+async function del(url) { return fetch(url, { method: 'DELETE', headers: authToken ? {'Authorization':'Bearer '+authToken} : {} }) }
 
 // ── Tabla ────────────────────────────────────────────────────────────────────
 async function cargarTabla() {
@@ -343,17 +476,18 @@ async function cargarEquipos() {
 }
 
 async function cargarJugadores() {
-  const equipo = document.getElementById('filtro-equipo-jugador')?.value || ''
-  const data = await get('/api/jugadores/' + (equipo ? `?equipo_id=${equipo}` : ''))
+  const data = await get('/api/jugadores/')
   const grid = document.getElementById('jugadores-grid')
   const empty = document.getElementById('jugadores-empty')
   if (!data.length) { grid.innerHTML = ''; empty.style.display = ''; return }
   empty.style.display = 'none'
   grid.innerHTML = data.map(j => `
     <div class="jug-card">
-      ${j.numero ? `<span class="jug-num">${j.numero}</span>` : ''}
+      ${j.numero_camiseta ? `<span class="jug-num">#${j.numero_camiseta}</span>` : ''}
       <div class="jug-nombre">${j.nombre}</div>
-      <div class="jug-meta">${j.posicion || 'Libre'} · ${j.equipo_nombre || 'Sin equipo'}</div>
+      <div class="jug-meta">${j.posicion_principal || 'Sin posición'}</div>
+      ${j.telefono ? `<div class="jug-meta" style="margin-top:2px">📱 ${j.telefono}</div>` : ''}
+      ${j.notas ? `<div class="jug-meta" style="margin-top:4px;font-style:italic">${j.notas}</div>` : ''}
     </div>
   `).join('')
 }
@@ -383,7 +517,13 @@ async function crearEquipo() {
 async function crearJugador() {
   const nombre = document.getElementById('jug-nombre').value.trim()
   if (!nombre) return alert('El nombre es obligatorio')
-  await post('/api/jugadores/', { nombre, equipo_id: document.getElementById('jug-equipo').value || null, posicion: document.getElementById('jug-posicion').value, numero: parseInt(document.getElementById('jug-numero').value) || null })
+  await post('/api/jugadores/', {
+    nombre,
+    posicion_principal: document.getElementById('jug-posicion-principal').value,
+    numero_camiseta: parseInt(document.getElementById('jug-numero-camiseta').value) || null,
+    telefono: document.getElementById('jug-telefono').value.trim(),
+    notas: document.getElementById('jug-notas').value.trim(),
+  })
   cerrarModales()
   cargarJugadores()
 }
@@ -413,7 +553,75 @@ async function eliminarEquipo(id) {
   cargarEquipos()
 }
 
+// ── QB — Mi equipo y restricciones de jornada ─────────────────────────────────
+async function cargarMiEquipo() {
+  const div = document.getElementById('qb-roster')
+  try {
+    const data = await get('/api/qb/mi-equipo')
+    const reg = data.registro
+    document.getElementById('qb-equipo-titulo').textContent =
+      `${reg.equipo_nombre} · Cat ${reg.categoria} · ${reg.division}`
+    if (!data.jugadores.length) {
+      div.innerHTML = '<div class="empty">Sin jugadores inscritos aún.</div>'; return
+    }
+    div.innerHTML = `<div class="jug-grid">${data.jugadores.map(j => `
+      <div class="jug-card">
+        ${j.numero_camiseta ? `<span class="jug-num">#${j.numero_camiseta}</span>` : ''}
+        <div class="jug-nombre">${j.nombre}</div>
+        <div class="jug-meta">${j.posicion_principal || j.posicion || 'Sin posición'}</div>
+        ${j.telefono ? `<div class="jug-meta">📱 ${j.telefono}</div>` : ''}
+      </div>`).join('')}</div>`
+  } catch(e) {
+    div.innerHTML = '<div class="empty">No tienes equipo asignado. Contacta al admin.</div>'
+  }
+}
+
+async function cargarTemporadasQB() {
+  const sel = document.getElementById('qb-temporada-sel')
+  const data = await get('/api/temporadas/')
+  const activas = data.filter(t => t.estado === 'activa')
+  sel.innerHTML = '<option value="">Selecciona temporada</option>' +
+    data.map(t => `<option value="${t.id}" ${activas[0]?.id === t.id ? 'selected' : ''}>${t.nombre} (${t.anio}-T${t.numero})</option>`).join('')
+  if (activas.length) { sel.value = activas[0].id; cargarMisJornadas() }
+}
+
+async function cargarMisJornadas() {
+  const tid = document.getElementById('qb-temporada-sel').value
+  const list = document.getElementById('qb-jornadas-list')
+  if (!tid) { list.innerHTML = '<div class="empty">Selecciona una temporada.</div>'; return }
+  try {
+    const data = await get(`/api/qb/jornadas/${tid}`)
+    if (!data.length) { list.innerHTML = '<div class="empty">Sin jornadas.</div>'; return }
+    const franjas = ['sin_restriccion','manana','mediodia','tarde']
+    const labels = {'sin_restriccion':'Sin restricción','manana':'Mañana','mediodia':'Mediodía','tarde':'Tarde'}
+    const clases = {'sin_restriccion':'r-libre','manana':'r-manana','mediodia':'r-mediodia','tarde':'r-tarde'}
+    list.innerHTML = data.map(j => `
+      <div class="jornada-item">
+        <div>
+          <div class="jornada-num">Jornada ${j.numero}</div>
+          <div class="jornada-fecha">${j.fecha || 'Fecha por definir'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="restriccion-badge ${clases[j.mi_restriccion]}">${labels[j.mi_restriccion]}</span>
+          <select class="select" style="font-size:11px;padding:4px 8px" onchange="setRestriccion(${j.id}, this.value)">
+            ${franjas.map(f => `<option value="${f}" ${j.mi_restriccion === f ? 'selected':''}>${labels[f]}</option>`).join('')}
+          </select>
+        </div>
+      </div>`).join('')
+  } catch(e) {
+    list.innerHTML = '<div class="empty">Inicia sesión como QB para ver tus jornadas.</div>'
+  }
+}
+
+async function setRestriccion(jornada_id, preferencia) {
+  try {
+    await post(`/api/qb/jornadas/${jornada_id}/restriccion`, { preferencia })
+    cargarMisJornadas()
+  } catch(e) { alert('Error al guardar restricción: ' + e.message) }
+}
+
 // Init
+actualizarUIAuth()
 cargarTabla()
 </script>
 </body>

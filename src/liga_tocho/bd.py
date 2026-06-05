@@ -108,6 +108,29 @@ CREATE TABLE IF NOT EXISTS inscripciones (
 CREATE INDEX IF NOT EXISTS idx_inscripciones_jugador  ON inscripciones(jugador_id);
 CREATE INDEX IF NOT EXISTS idx_inscripciones_registro ON inscripciones(registro_id);
 
+-- ── Restricciones de horario POR JORNADA (QB solicita franja para esa jornada) ─
+-- Tiene prioridad sobre restricciones_horario (permanente)
+CREATE TABLE IF NOT EXISTS restricciones_jornada (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    registro_id  INTEGER NOT NULL REFERENCES registros(id) ON DELETE CASCADE,
+    jornada_id   INTEGER NOT NULL REFERENCES jornadas(id) ON DELETE CASCADE,
+    preferencia  TEXT NOT NULL
+                 CHECK(preferencia IN ('manana','mediodia','tarde','sin_restriccion')),
+    UNIQUE(registro_id, jornada_id)
+);
+
+-- ── Usuarios (admin + QB por equipo) ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS usuarios (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    username     TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    rol          TEXT NOT NULL DEFAULT 'publico'
+                 CHECK(rol IN ('admin','qb','publico')),
+    registro_id  INTEGER REFERENCES registros(id) ON DELETE SET NULL,
+    activo       INTEGER NOT NULL DEFAULT 1,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ── Partidos ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS partidos (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -146,8 +169,21 @@ def get_conn() -> sqlite3.Connection:
     return conn
 
 
+MIGRACIONES = [
+    "ALTER TABLE jugadores ADD COLUMN posicion_principal TEXT DEFAULT ''",
+    "ALTER TABLE jugadores ADD COLUMN numero_camiseta INTEGER",
+    "ALTER TABLE jugadores ADD COLUMN telefono TEXT DEFAULT ''",
+]
+
+
 def init_db() -> None:
     conn = get_conn()
     conn.executescript(DDL)
+    # Migraciones idempotentes (ignora "duplicate column" silenciosamente)
+    for sql in MIGRACIONES:
+        try:
+            conn.execute(sql)
+        except Exception:
+            pass
     conn.commit()
     conn.close()

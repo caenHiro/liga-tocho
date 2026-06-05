@@ -312,6 +312,35 @@ def actualizar_horario(rid: int, preferencia: str):
     return {"ok": True}
 
 
+@registros_router.patch("/{rid}/horario-jornada")
+def restriccion_por_jornada(rid: int, jornada_id: int, preferencia: str):
+    """Admin o QB: establece restricción de horario para una jornada específica."""
+    if preferencia not in ("manana", "mediodia", "tarde", "sin_restriccion"):
+        raise HTTPException(400, "Preferencia inválida")
+    conn = get_conn()
+    conn.execute(
+        "INSERT OR REPLACE INTO restricciones_jornada (registro_id, jornada_id, preferencia) VALUES (?,?,?)",
+        (rid, jornada_id, preferencia),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@registros_router.get("/{rid}/horario-jornadas")
+def ver_restricciones_jornada(rid: int):
+    """Lista todas las restricciones por jornada de un registro."""
+    conn = get_conn()
+    rows = conn.execute(
+        """SELECT rj.*, j.numero as jornada_num
+           FROM restricciones_jornada rj JOIN jornadas j ON j.id=rj.jornada_id
+           WHERE rj.registro_id=? ORDER BY j.numero""",
+        (rid,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 @registros_router.delete("/{rid}", status_code=204)
 def eliminar_registro(rid: int):
     conn = get_conn()
@@ -330,6 +359,9 @@ jugadores_router = APIRouter(prefix="/api/jugadores", tags=["jugadores"])
 class JugadorIn(BaseModel):
     nombre: str
     notas: str = ""
+    posicion_principal: str = ""
+    numero_camiseta: Optional[int] = None
+    telefono: str = ""
 
 
 class InscripcionIn(BaseModel):
@@ -349,11 +381,27 @@ def listar_jugadores():
 @jugadores_router.post("/", status_code=201)
 def crear_jugador(body: JugadorIn):
     conn = get_conn()
-    cur = conn.execute("INSERT INTO jugadores (nombre, notas) VALUES (?,?)", (body.nombre, body.notas))
+    cur = conn.execute(
+        "INSERT INTO jugadores (nombre, notas, posicion_principal, numero_camiseta, telefono) VALUES (?,?,?,?,?)",
+        (body.nombre, body.notas, body.posicion_principal, body.numero_camiseta, body.telefono),
+    )
     row = conn.execute("SELECT * FROM jugadores WHERE id=?", (cur.lastrowid,)).fetchone()
     conn.commit()
     conn.close()
     return _row(row)
+
+
+@jugadores_router.patch("/{jid}")
+def actualizar_jugador(jid: int, body: JugadorIn):
+    conn = get_conn()
+    conn.execute(
+        "UPDATE jugadores SET nombre=?, notas=?, posicion_principal=?, numero_camiseta=?, telefono=? WHERE id=?",
+        (body.nombre, body.notas, body.posicion_principal, body.numero_camiseta, body.telefono, jid),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM jugadores WHERE id=?", (jid,)).fetchone()
+    conn.close()
+    return _row(_or_404(row, "Jugador no encontrado"))
 
 
 @jugadores_router.get("/{jid}/inscripciones")

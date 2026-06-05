@@ -89,6 +89,19 @@ def generar_calendario(
         "tarde":    min(n_canchas_tarde, len(cancha_ids)),
     }
 
+    # Restricciones por jornada (QB solicita franja para jornada específica)
+    # Estructura: {registro_id: {jornada_id: preferencia}}
+    rj_rows = conn.execute(
+        """SELECT rj.registro_id, rj.jornada_id, rj.preferencia
+           FROM restricciones_jornada rj
+           JOIN registros r ON r.id=rj.registro_id
+           WHERE r.temporada_id=?""",
+        (temporada_id,),
+    ).fetchall()
+    restr_jornada: dict[int, dict[int, str]] = defaultdict(dict)
+    for rj in rj_rows:
+        restr_jornada[rj["registro_id"]][rj["jornada_id"]] = rj["preferencia"]
+
     # Agrupar registros por categoría+división
     grupos = conn.execute(
         """SELECT r.id, r.equipo_id, r.categoria, r.division,
@@ -124,13 +137,17 @@ def generar_calendario(
             if jornada_idx >= len(jornada_ids):
                 advertencias.append(f"Cat {cat}/{div}: hay más rondas ({len(jornadas_rr)}) que jornadas ({len(jornada_ids)}). Partidos extra no asignados.")
                 break
+            jid = jornada_ids[jornada_idx]
             for (local_id, vis_id) in enfrentamientos:
+                # Preferencia por jornada tiene prioridad sobre permanente
+                pref_l = restr_jornada[local_id].get(jid) or prefs[local_id]
+                pref_v = restr_jornada[vis_id].get(jid) or prefs[vis_id]
                 partidos_pendientes.append({
-                    "jornada_id": jornada_ids[jornada_idx],
+                    "jornada_id": jid,
                     "local": local_id,
                     "vis": vis_id,
-                    "pref_local": prefs[local_id],
-                    "pref_vis": prefs[vis_id],
+                    "pref_local": pref_l,
+                    "pref_vis": pref_v,
                     "cat": cat, "div": div,
                 })
 
