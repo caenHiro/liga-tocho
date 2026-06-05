@@ -104,6 +104,14 @@
     .r-tarde { background: rgba(34,197,94,.12); color: var(--green); }
     .r-libre { background: rgba(255,255,255,.06); color: var(--text-mute); }
 
+    /* Home grid */
+    .home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 768px) { .home-grid { grid-template-columns: 1fr; } }
+    .redes-info { color: var(--text-mute); font-size: 10px; margin-bottom: 10px; }
+    .redes-config { margin-top: 8px; font-size: 10px; text-align: center; }
+    .fb-feed-wrap, .ig-feed-wrap { min-height: 120px; display: flex; justify-content: center; overflow: hidden; border-radius: 6px; }
+    .ig-placeholder { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+
     /* Admin panel */
     .admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
     .admin-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r); padding: 18px; }
@@ -151,48 +159,108 @@
   <div class="hdr">
     <h1>Liga de <span>Tochito</span></h1>
     <div class="nav-tabs">
-      <button class="tab active" onclick="mostrar('tabla')">Tabla</button>
-      <button class="tab" onclick="mostrar('partidos')">Partidos</button>
-      <button class="tab" onclick="mostrar('equipos')">Equipos</button>
-      <button class="tab" onclick="mostrar('jugadores')">Jugadores</button>
+      <button class="tab active" id="tab-tabla" onclick="mostrar('tabla')">Inicio</button>
+      <button class="tab" id="tab-equipos" style="display:none" onclick="mostrar('equipos')">Equipos</button>
+      <button class="tab" id="tab-jugadores" style="display:none" onclick="mostrar('jugadores')">Jugadores</button>
       <button class="tab" id="tab-qb" style="display:none" onclick="mostrar('qb')">Mi Equipo</button>
       <button class="tab" id="tab-admin" style="display:none" onclick="mostrar('admin')">Admin</button>
     </div>
   </div>
 
-  <!-- TABLA POSICIONES -->
+  <!-- HOME — Tabla + Partidos + Estadísticas + Redes -->
   <div class="section active" id="sec-tabla">
-    <div class="card">
-      <div class="card-head">
-        <span class="card-title">Tabla de posiciones</span>
-        <button class="btn btn-ghost" onclick="cargarTabla()">Actualizar</button>
-      </div>
-      <table class="pos-table">
-        <thead>
-          <tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>GF</th><th>GC</th><th>DIF</th><th>PTS</th></tr>
-        </thead>
-        <tbody id="tabla-body"></tbody>
-      </table>
-      <div class="empty" id="tabla-empty" style="display:none">Sin equipos ni partidos registrados.</div>
-    </div>
-  </div>
+    <div class="home-grid">
 
-  <!-- PARTIDOS -->
-  <div class="section" id="sec-partidos">
-    <div class="card">
-      <div class="card-head">
-        <span class="card-title">Partidos</span>
-        <button class="btn btn-amber" onclick="abrirModalPartido()">+ Partido</button>
+      <!-- Col izquierda: tabla posiciones + partidos próximos -->
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-head">
+            <span class="card-title">Tabla de posiciones</span>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select class="select" id="filtro-cat-tabla" style="font-size:11px;padding:4px 8px" onchange="cargarTabla()">
+                <option value="">Todas</option>
+                <option value="A">Cat A</option><option value="B">Cat B</option>
+                <option value="C">Cat C</option><option value="D">Cat D</option>
+                <option value="E">Cat E</option><option value="F">Cat F</option>
+              </select>
+              <select class="select" id="filtro-div-tabla" style="font-size:11px;padding:4px 8px" onchange="cargarTabla()">
+                <option value="">Todas div.</option>
+                <option value="varonil">Varonil</option>
+                <option value="mixto">Mixto</option>
+                <option value="femenino">Femenino</option>
+              </select>
+            </div>
+          </div>
+          <table class="pos-table">
+            <thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>GF</th><th>GC</th><th>DIF</th><th>PTS</th></tr></thead>
+            <tbody id="tabla-body"></tbody>
+          </table>
+          <div class="empty" id="tabla-empty" style="display:none">Sin partidos registrados aún.</div>
+        </div>
+
+        <!-- Últimos resultados -->
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title">Últimos resultados</span>
+          </div>
+          <div id="resultados-list"></div>
+        </div>
       </div>
-      <div class="form-row">
-        <select class="select" id="filtro-estado-partido" onchange="cargarPartidos()">
-          <option value="">Todos los estados</option>
-          <option value="programado">Programados</option>
-          <option value="finalizado">Finalizados</option>
-          <option value="cancelado">Cancelados</option>
-        </select>
+
+      <!-- Col derecha: próximos partidos + redes sociales -->
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-head">
+            <span class="card-title">Próximos partidos</span>
+          </div>
+          <div id="proximos-list"></div>
+        </div>
+
+        <!-- Redes sociales de la liga -->
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title">Redes sociales</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="mostrarRed('facebook')">Facebook</button>
+              <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="mostrarRed('instagram')">Instagram</button>
+            </div>
+          </div>
+          <div id="redes-panel">
+            <!-- Facebook por defecto -->
+            <div id="red-facebook">
+              <div class="redes-info eyebrow">Publicaciones de la liga en Facebook</div>
+              <div id="fb-feed-container" class="fb-feed-wrap">
+                <!-- Facebook Page Plugin embed -->
+                <div class="fb-page"
+                  data-href="https://www.facebook.com/LigaTochito"
+                  data-tabs="timeline"
+                  data-width="340"
+                  data-height="400"
+                  data-small-header="true"
+                  data-adapt-container-width="true"
+                  data-hide-cover="false"
+                  data-show-facepile="false">
+                </div>
+              </div>
+              <div class="redes-config eyebrow" id="fb-config-link">
+                <a href="#" onclick="configurarFB(); return false;" style="color:var(--amber)">Configurar página de Facebook</a>
+              </div>
+            </div>
+            <div id="red-instagram" style="display:none">
+              <div class="redes-info eyebrow">Publicaciones de la liga en Instagram</div>
+              <div id="ig-feed-container" class="ig-feed-wrap">
+                <!-- Instagram embed placeholder -->
+                <div class="ig-placeholder">
+                  <p class="eyebrow">Para mostrar el feed de Instagram, configura el handle.</p>
+                  <input class="input" id="ig-handle-input" placeholder="@liga_tochito" style="margin:8px 0" />
+                  <button class="btn btn-amber" style="font-size:11px" onclick="cargarIGFeed()">Cargar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div id="partidos-list"></div>
+
     </div>
   </div>
 
@@ -527,20 +595,28 @@ async function hacerLogout() {
 function actualizarUIAuth() {
   const formArea = document.getElementById('login-form-area')
   const userArea = document.getElementById('login-user-area')
-  const tabQB    = document.getElementById('tab-qb')
-  const tabAdmin = document.getElementById('tab-admin')
+  const tabEquipos  = document.getElementById('tab-equipos')
+  const tabJugadores = document.getElementById('tab-jugadores')
+  const tabQB       = document.getElementById('tab-qb')
+  const tabAdmin    = document.getElementById('tab-admin')
   if (authUser) {
     formArea.style.display = 'none'
     userArea.style.display = 'flex'
     document.getElementById('user-name').textContent = authUser.username
     document.getElementById('user-rol').textContent = authUser.rol
+    // Con login: equipos y jugadores visibles para todos
+    tabEquipos.style.display   = ''
+    tabJugadores.style.display = ''
     tabQB.style.display    = (authUser.rol === 'qb' || authUser.rol === 'admin') ? '' : 'none'
     tabAdmin.style.display = authUser.rol === 'admin' ? '' : 'none'
   } else {
     formArea.style.display = ''
     userArea.style.display = 'none'
-    tabQB.style.display    = 'none'
-    tabAdmin.style.display = 'none'
+    // Sin login: ocultar todo excepto Inicio
+    tabEquipos.style.display   = 'none'
+    tabJugadores.style.display = 'none'
+    tabQB.style.display        = 'none'
+    tabAdmin.style.display     = 'none'
   }
 }
 
@@ -551,8 +627,7 @@ function mostrar(sec) {
   document.getElementById('sec-' + sec).classList.add('active')
   event.target.classList.add('active')
   seccionActiva = sec
-  if (sec === 'tabla') cargarTabla()
-  if (sec === 'partidos') cargarPartidos()
+  if (sec === 'tabla') cargarHome()
   if (sec === 'equipos') cargarEquipos()
   if (sec === 'jugadores') { cargarEquipos(); cargarJugadores() }
   if (sec === 'qb') { cargarMiEquipo(); cargarTemporadasQB() }
@@ -575,26 +650,7 @@ async function patch(url, body) {
 }
 async function del(url) { return fetch(url, { method: 'DELETE', headers: authToken ? {'Authorization':'Bearer '+authToken} : {} }) }
 
-// ── Tabla ────────────────────────────────────────────────────────────────────
-async function cargarTabla() {
-  const data = await get('/api/tabla/')
-  const tbody = document.getElementById('tabla-body')
-  const empty = document.getElementById('tabla-empty')
-  if (!data.length) { tbody.innerHTML = ''; empty.style.display = ''; return }
-  empty.style.display = 'none'
-  tbody.innerHTML = data.map((e, i) => {
-    const posClass = i === 0 ? 'pos-1' : i === 1 ? 'pos-2' : i === 2 ? 'pos-3' : ''
-    const dot = e.color ? `<span class="color-dot" style="background:${e.color}"></span>` : ''
-    return `<tr>
-      <td class="pos-num ${posClass}">${i+1}</td>
-      <td>${dot}<strong>${e.nombre}</strong><br><span style="font-size:10px;color:var(--text-mute)">${e.categoria} · Cap: ${e.capitan || '—'}</span></td>
-      <td class="pos-num">${e.pj}</td><td class="pos-num">${e.pg}</td><td class="pos-num">${e.pe}</td><td class="pos-num">${e.pp}</td>
-      <td class="pos-num">${e.gf}</td><td class="pos-num">${e.gc}</td>
-      <td class="pos-num" style="color:${e.dif > 0 ? 'var(--green)' : e.dif < 0 ? 'var(--red)' : 'inherit'}">${e.dif > 0 ? '+' : ''}${e.dif}</td>
-      <td><span class="pts-val" style="color:var(--amber)">${e.pts}</span></td>
-    </tr>`
-  }).join('')
-}
+// cargarTabla definida en cargarHome (con filtros de categoría/división)
 
 // ── Partidos ──────────────────────────────────────────────────────────────────
 async function cargarPartidos() {
@@ -731,6 +787,129 @@ async function eliminarEquipo(id) {
   if (!confirm('Eliminar equipo?')) return
   await del(`/api/equipos/${id}`)
   cargarEquipos()
+}
+
+// ── Home — tabla + próximos + resultados + redes ─────────────────────────────
+async function cargarHome() {
+  await Promise.all([cargarTabla(), cargarProximos(), cargarResultados()])
+  cargarFBPlugin()
+}
+
+async function cargarTabla() {
+  const tid = await getTemporadaActiva()
+  let url = tid ? `/api/tabla/?temporada_id=${tid}` : '/api/tabla/?temporada_id=0'
+  const cat = document.getElementById('filtro-cat-tabla')?.value
+  const div = document.getElementById('filtro-div-tabla')?.value
+  if (cat) url += `&categoria=${cat}`
+  if (div) url += `&division=${div}`
+  const data = await get(url)
+  const tbody = document.getElementById('tabla-body')
+  const empty = document.getElementById('tabla-empty')
+  if (!data.length) { tbody.innerHTML = ''; empty.style.display = ''; return }
+  empty.style.display = 'none'
+  tbody.innerHTML = data.map((e, i) => {
+    const dot = e.color ? `<span class="color-dot" style="background:${e.color}"></span>` : ''
+    const posClass = i === 0 ? 'pos-1' : i === 1 ? 'pos-2' : i === 2 ? 'pos-3' : ''
+    return `<tr>
+      <td class="pos-num ${posClass}">${i+1}</td>
+      <td>${dot}<strong>${e.equipo}</strong>
+        <span style="font-size:9px;color:var(--text-mute);margin-left:4px">${e.categoria}·${e.division.substring(0,3)}</span>
+      </td>
+      <td class="pos-num">${e.jugados}</td>
+      <td class="pos-num">${e.ganados}</td><td class="pos-num">${e.empatados}</td><td class="pos-num">${e.perdidos}</td>
+      <td class="pos-num">${e.gf}</td><td class="pos-num">${e.gc}</td>
+      <td class="pos-num" style="color:${e.diferencia > 0 ? 'var(--green)' : e.diferencia < 0 ? 'var(--red)' : 'inherit'}">${e.diferencia > 0 ? '+' : ''}${e.diferencia}</td>
+      <td><span class="pts-val" style="color:var(--amber)">${e.puntos}</span></td>
+    </tr>`
+  }).join('')
+}
+
+async function getTemporadaActiva() {
+  const temps = await get('/api/temporadas/')
+  return temps.find(t => t.estado === 'activa')?.id || null
+}
+
+async function cargarProximos() {
+  const list = document.getElementById('proximos-list')
+  try {
+    const data = await get('/api/partidos/?estado=programado')
+    if (!data.length) { list.innerHTML = '<div class="empty">Sin partidos programados.</div>'; return }
+    list.innerHTML = data.slice(0, 6).map(p => `
+      <div class="partido-card">
+        <div><div class="partido-equipo">${p.equipo_local || '—'}</div></div>
+        <div>
+          <div class="partido-marcador">vs</div>
+          <div class="partido-meta">${p.jornada_fecha ? p.jornada_fecha : 'J' + (p.jornada_num ?? '?')} · ${p.franja || ''} · ${p.cancha_nombre || ''}</div>
+        </div>
+        <div><div class="partido-equipo visitante">${p.equipo_visitante || '—'}</div></div>
+      </div>`).join('')
+  } catch { list.innerHTML = '<div class="empty">Sin partidos.</div>' }
+}
+
+async function cargarResultados() {
+  const list = document.getElementById('resultados-list')
+  try {
+    const data = await get('/api/partidos/?estado=finalizado')
+    if (!data.length) { list.innerHTML = '<div class="empty">Sin resultados aún.</div>'; return }
+    list.innerHTML = data.slice(0, 8).map(p => `
+      <div class="partido-card">
+        <div><div class="partido-equipo">${p.equipo_local || '—'}</div></div>
+        <div>
+          <div class="partido-marcador">${p.goles_local} — ${p.goles_visitante}</div>
+          <div class="partido-meta"><span class="estado-badge estado-finalizado">Final</span><br>J${p.jornada_num ?? '?'} · ${p.franja || ''}</div>
+        </div>
+        <div><div class="partido-equipo visitante">${p.equipo_visitante || '—'}</div></div>
+      </div>`).join('')
+  } catch { list.innerHTML = '<div class="empty">Sin resultados.</div>' }
+}
+
+// Redes sociales
+let _redActiva = 'facebook'
+const _fbHandle = localStorage.getItem('liga_fb_handle') || 'LigaTochito'
+const _igHandle = localStorage.getItem('liga_ig_handle') || ''
+
+function mostrarRed(red) {
+  _redActiva = red
+  document.getElementById('red-facebook').style.display = red === 'facebook' ? '' : 'none'
+  document.getElementById('red-instagram').style.display = red === 'instagram' ? '' : 'none'
+  if (red === 'instagram' && _igHandle) cargarIGFeed()
+}
+
+function cargarFBPlugin() {
+  // Carga el SDK de Facebook si no está cargado
+  if (window.FB) { window.FB.XFBML.parse(); return }
+  if (document.getElementById('fb-sdk')) return
+  const div = document.createElement('div'); div.id = 'fb-root'; document.body.prepend(div)
+  window.fbAsyncInit = function() {
+    FB.init({ xfbml: true, version: 'v19.0' })
+  }
+  const js = document.createElement('script'); js.id = 'fb-sdk'; js.async = true
+  js.src = 'https://connect.facebook.net/es_LA/sdk.js'
+  document.head.appendChild(js)
+}
+
+function configurarFB() {
+  const handle = prompt('Handle de la página de Facebook (sin @):', _fbHandle)
+  if (!handle) return
+  localStorage.setItem('liga_fb_handle', handle)
+  const fbPage = document.querySelector('.fb-page')
+  if (fbPage) { fbPage.setAttribute('data-href', `https://www.facebook.com/${handle}`); cargarFBPlugin() }
+}
+
+function cargarIGFeed() {
+  const handle = document.getElementById('ig-handle-input')?.value || _igHandle
+  if (!handle) return
+  localStorage.setItem('liga_ig_handle', handle.replace('@',''))
+  const container = document.getElementById('ig-feed-container')
+  // Instagram no permite embed oficial sin aprobación de Business — mostramos link directo
+  container.innerHTML = `
+    <div style="padding:16px;text-align:center">
+      <p class="eyebrow" style="margin-bottom:10px">Instagram no permite embeds externos sin App Review.</p>
+      <a href="https://www.instagram.com/${handle.replace('@','')}" target="_blank"
+         class="btn btn-amber" style="display:inline-block;text-decoration:none">
+        Ver @${handle.replace('@','')} en Instagram
+      </a>
+    </div>`
 }
 
 // ── Admin panel ───────────────────────────────────────────────────────────────
@@ -1027,7 +1206,7 @@ async function setRestriccion(jornada_id, preferencia) {
 
 // Init
 actualizarUIAuth()
-cargarTabla()
+cargarHome()
 </script>
 </body>
 </html>
