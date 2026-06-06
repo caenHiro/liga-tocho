@@ -150,6 +150,23 @@ CREATE TABLE IF NOT EXISTS partidos (
 CREATE INDEX IF NOT EXISTS idx_partidos_jornada    ON partidos(jornada_id);
 CREATE INDEX IF NOT EXISTS idx_partidos_registro_l ON partidos(registro_local_id);
 CREATE INDEX IF NOT EXISTS idx_partidos_registro_v ON partidos(registro_visitante_id);
+
+-- ── Estadísticas por partido (touchdowns, yardas, intercepciones) ─────────────
+CREATE TABLE IF NOT EXISTS estadisticas_partido (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    partido_id               INTEGER NOT NULL REFERENCES partidos(id) ON DELETE CASCADE,
+    registro_id              INTEGER NOT NULL REFERENCES registros(id),
+    touchdowns               INTEGER NOT NULL DEFAULT 0,
+    yardas_pase              INTEGER NOT NULL DEFAULT 0,
+    yardas_tierra            INTEGER NOT NULL DEFAULT 0,
+    intercepciones_lanzadas  INTEGER NOT NULL DEFAULT 0,
+    intercepciones_atrapadas INTEGER NOT NULL DEFAULT 0,
+    puntos_extra             INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(partido_id, registro_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stats_partido  ON estadisticas_partido(partido_id);
+CREATE INDEX IF NOT EXISTS idx_stats_registro ON estadisticas_partido(registro_id);
 """
 
 FRANJAS = {

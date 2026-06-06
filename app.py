@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse
 
 from src.liga_tocho.bd import init_db
 from src.liga_tocho import routers
+from src.liga_tocho.routers import estadisticas_router, notificaciones_router
 from src.liga_tocho.routers_auth import (
     auth_router, qb_router, ensure_admin_default,
 )
@@ -53,6 +54,10 @@ app.include_router(routers.calendario_router)
 # Auth + QB
 app.include_router(auth_router)
 app.include_router(qb_router)
+
+# Estadísticas + Notificaciones
+app.include_router(estadisticas_router)
+app.include_router(notificaciones_router)
 
 
 @app.get("/health")

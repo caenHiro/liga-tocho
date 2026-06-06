@@ -467,10 +467,21 @@ def desinscribir_jugador(jid: int, rid: int):
 partidos_router = APIRouter(prefix="/api/partidos", tags=["partidos"])
 
 
+class EstadisticasIn(BaseModel):
+    touchdowns: int = 0
+    yardas_pase: int = 0
+    yardas_tierra: int = 0
+    intercepciones_lanzadas: int = 0
+    intercepciones_atrapadas: int = 0
+    puntos_extra: int = 0
+
+
 class ResultadoIn(BaseModel):
     goles_local: int
     goles_visitante: int
     estado: str = "finalizado"
+    stats_local: Optional[EstadisticasIn] = None
+    stats_visitante: Optional[EstadisticasIn] = None
 
 
 @partidos_router.get("/")
@@ -509,10 +520,34 @@ def registrar_resultado(pid: int, body: ResultadoIn):
     if body.estado not in ("finalizado", "suspendido", "en_juego"):
         raise HTTPException(400, "Estado inválido")
     conn = get_conn()
+    partido = conn.execute("SELECT * FROM partidos WHERE id=?", (pid,)).fetchone()
+    if not partido:
+        conn.close()
+        raise HTTPException(404, "Partido no encontrado")
     conn.execute(
         "UPDATE partidos SET goles_local=?, goles_visitante=?, estado=? WHERE id=?",
         (body.goles_local, body.goles_visitante, body.estado, pid),
     )
+    # Upsert estadísticas si se enviaron
+    for stats, reg_id in [
+        (body.stats_local, partido["registro_local_id"]),
+        (body.stats_visitante, partido["registro_visitante_id"]),
+    ]:
+        if stats and reg_id:
+            conn.execute("""
+                INSERT INTO estadisticas_partido
+                    (partido_id, registro_id, touchdowns, yardas_pase, yardas_tierra,
+                     intercepciones_lanzadas, intercepciones_atrapadas, puntos_extra)
+                VALUES (?,?,?,?,?,?,?,?)
+                ON CONFLICT(partido_id, registro_id) DO UPDATE SET
+                    touchdowns=excluded.touchdowns,
+                    yardas_pase=excluded.yardas_pase,
+                    yardas_tierra=excluded.yardas_tierra,
+                    intercepciones_lanzadas=excluded.intercepciones_lanzadas,
+                    intercepciones_atrapadas=excluded.intercepciones_atrapadas,
+                    puntos_extra=excluded.puntos_extra
+            """, (pid, reg_id, stats.touchdowns, stats.yardas_pase, stats.yardas_tierra,
+                  stats.intercepciones_lanzadas, stats.intercepciones_atrapadas, stats.puntos_extra))
     conn.commit()
     conn.close()
     return {"ok": True}
@@ -609,6 +644,167 @@ def limpiar_calendario(tid: int):
     )
     conn.commit()
     conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# ESTADÍSTICAS
+# ════════════════════════════════════════════════════════════════════════════
+
+estadisticas_router = APIRouter(prefix="/api/estadisticas", tags=["estadisticas"])
+
+
+@estadisticas_router.get("/partido/{pid}")
+def stats_partido(pid: int):
+    """Estadísticas detalladas de un partido: local vs visitante."""
+    conn = get_conn()
+    partido = conn.execute("SELECT * FROM partidos WHERE id=?", (pid,)).fetchone()
+    if not partido:
+        conn.close()
+        raise HTTPException(404, "Partido no encontrado")
+    rows = conn.execute("""
+        SELECT sp.*, e.nombre as equipo, r.categoria, r.division
+        FROM estadisticas_partido sp
+        JOIN registros r ON r.id = sp.registro_id
+        JOIN equipos e ON e.id = r.equipo_id
+        WHERE sp.partido_id = ?
+    """, (pid,)).fetchall()
+    conn.close()
+    return {"partido_id": pid, "estadisticas": [_row(r) for r in rows]}
+
+
+@estadisticas_router.get("/top/{temporada_id}")
+def stats_top(temporada_id: int, categoria: Optional[str] = None, division: Optional[str] = None):
+    """Ranking de equipos por temporada: touchdowns, yardas totales."""
+    conn = get_conn()
+    filtro = "AND r.categoria=?" if categoria else ""
+    filtro2 = "AND r.division=?" if division else ""
+    params: list = [temporada_id]
+    if categoria:
+        params.append(categoria)
+    if division:
+        params.append(division)
+    rows = conn.execute(f"""
+        SELECT e.nombre as equipo, e.color, r.categoria, r.division,
+               SUM(sp.touchdowns) as total_tds,
+               SUM(sp.yardas_pase + sp.yardas_tierra) as total_yardas,
+               SUM(sp.intercepciones_atrapadas) as total_int_atrapadas,
+               COUNT(DISTINCT sp.partido_id) as partidos_con_stats
+        FROM estadisticas_partido sp
+        JOIN registros r ON r.id = sp.registro_id
+        JOIN equipos e ON e.id = r.equipo_id
+        JOIN jornadas j ON j.temporada_id = ?
+        WHERE r.temporada_id = ? {filtro} {filtro2}
+        GROUP BY r.id
+        ORDER BY total_tds DESC, total_yardas DESC
+    """, [temporada_id] + params).fetchall()
+    conn.close()
+    return {"temporada_id": temporada_id, "ranking": [_row(r) for r in rows]}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# NOTIFICACIONES (mensajes WhatsApp via Ollama)
+# ════════════════════════════════════════════════════════════════════════════
+
+notificaciones_router = APIRouter(prefix="/api/notificaciones", tags=["notificaciones"])
+
+
+def _ollama_chat(prompt: str, modelo: str = "llama3.2") -> str:
+    """Llama a Ollama local. Retorna '' si no está disponible."""
+    import json as _json
+    from urllib.request import Request, urlopen
+    from urllib.error import URLError
+    payload = _json.dumps({
+        "model": modelo,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "options": {"temperature": 0.7, "num_predict": 300},
+    }).encode()
+    try:
+        req = Request("http://localhost:11434/api/chat", data=payload,
+                      headers={"Content-Type": "application/json"}, method="POST")
+        with urlopen(req, timeout=45) as resp:
+            data = _json.loads(resp.read())
+        return data.get("message", {}).get("content", "").strip()
+    except (URLError, OSError):
+        return ""
+
+
+@notificaciones_router.get("/partido/{pid}")
+def notificacion_partido(pid: int, modelo: str = "llama3.2"):
+    """Genera mensajes WhatsApp para ambos equipos con resultado y stats."""
+    conn = get_conn()
+    partido = conn.execute("""
+        SELECT p.*,
+               el.nombre as equipo_local, ev.nombre as equipo_visitante,
+               c.nombre as cancha,
+               j.numero as jornada_num
+        FROM partidos p
+        JOIN registros rl ON rl.id=p.registro_local_id
+        JOIN registros rv ON rv.id=p.registro_visitante_id
+        JOIN equipos el ON el.id=rl.equipo_id
+        JOIN equipos ev ON ev.id=rv.equipo_id
+        LEFT JOIN canchas c ON c.id=p.cancha_id
+        LEFT JOIN jornadas j ON j.id=p.jornada_id
+        WHERE p.id=?
+    """, (pid,)).fetchone()
+    if not partido:
+        conn.close()
+        raise HTTPException(404, "Partido no encontrado")
+
+    stats_rows = conn.execute("""
+        SELECT sp.*, e.nombre as equipo
+        FROM estadisticas_partido sp
+        JOIN registros r ON r.id=sp.registro_id
+        JOIN equipos e ON e.id=r.equipo_id
+        WHERE sp.partido_id=?
+    """, (pid,)).fetchall()
+    conn.close()
+
+    p = dict(partido)
+    stats_txt = ""
+    for s in stats_rows:
+        sd = dict(s)
+        stats_txt += (
+            f"\n  {sd['equipo']}: {sd['touchdowns']} TDs, "
+            f"{sd['yardas_pase']+sd['yardas_tierra']} yds, "
+            f"{sd['intercepciones_atrapadas']} INT atrapadas"
+        )
+
+    prompt = f"""Eres el community manager de una liga de tochito bandera.
+Redacta un mensaje corto y emocionante para WhatsApp (máx 5 líneas) anunciando este resultado:
+
+Jornada {p.get('jornada_num','?')} — Cancha: {p.get('cancha','?')}
+{p['equipo_local']} {p['goles_local']} — {p['goles_visitante']} {p['equipo_visitante']}
+Estado: {p['estado']}
+Estadísticas:{stats_txt if stats_txt else ' no disponibles'}
+
+El mensaje debe:
+- Mencionar al ganador (o empate)
+- Incluir un dato de estadística si está disponible
+- Usar 1-2 emojis deportivos
+- Terminar con hashtag de la liga
+Responde solo el mensaje, sin explicaciones."""
+
+    msg = _ollama_chat(prompt, modelo)
+    if not msg:
+        # Fallback sin Ollama
+        ganador = p['equipo_local'] if p['goles_local'] > p['goles_visitante'] else (
+            p['equipo_visitante'] if p['goles_visitante'] > p['goles_local'] else "Empate"
+        )
+        msg = (
+            f"Resultado J{p.get('jornada_num','?')}: "
+            f"{p['equipo_local']} {p['goles_local']}-{p['goles_visitante']} {p['equipo_visitante']}. "
+            f"{'Gana ' + ganador if ganador != 'Empate' else 'Empate'} #LigaTochito"
+        )
+
+    return {
+        "partido_id": pid,
+        "equipo_local": p["equipo_local"],
+        "equipo_visitante": p["equipo_visitante"],
+        "resultado": f"{p['goles_local']}-{p['goles_visitante']}",
+        "mensaje_whatsapp": msg,
+        "modelo_usado": modelo if _ollama_chat else "fallback",
+    }
 
 
 # ════════════════════════════════════════════════════════════════════════════
