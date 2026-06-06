@@ -672,6 +672,107 @@ def stats_partido(pid: int):
     return {"partido_id": pid, "estadisticas": [_row(r) for r in rows]}
 
 
+class EstadisticasJugadorIn(BaseModel):
+    partido_id: int
+    jugador_id: int
+    registro_id: int
+    touchdowns: int = 0
+    yardas_pase: int = 0
+    yardas_tierra: int = 0
+    intercepciones_lanzadas: int = 0
+    intercepciones_atrapadas: int = 0
+    puntos_extra: int = 0
+
+
+@estadisticas_router.post("/jugador", status_code=201)
+def registrar_stats_jugador(body: EstadisticasJugadorIn):
+    """Registra o actualiza estadísticas individuales de un jugador en un partido."""
+    conn = get_conn()
+    conn.execute("""
+        INSERT INTO estadisticas_jugador
+            (partido_id, jugador_id, registro_id, touchdowns, yardas_pase, yardas_tierra,
+             intercepciones_lanzadas, intercepciones_atrapadas, puntos_extra)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(partido_id, jugador_id) DO UPDATE SET
+            touchdowns=excluded.touchdowns, yardas_pase=excluded.yardas_pase,
+            yardas_tierra=excluded.yardas_tierra,
+            intercepciones_lanzadas=excluded.intercepciones_lanzadas,
+            intercepciones_atrapadas=excluded.intercepciones_atrapadas,
+            puntos_extra=excluded.puntos_extra
+    """, (body.partido_id, body.jugador_id, body.registro_id,
+          body.touchdowns, body.yardas_pase, body.yardas_tierra,
+          body.intercepciones_lanzadas, body.intercepciones_atrapadas, body.puntos_extra))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@estadisticas_router.get("/jugadores/{temporada_id}")
+def ranking_jugadores(
+    temporada_id: int,
+    categoria: Optional[str] = None,
+    division: Optional[str] = None,
+    limit: int = 10,
+):
+    """Ranking individual de jugadores por TDs y yardas en la temporada."""
+    conn = get_conn()
+    filtros = ""
+    params: list = [temporada_id]
+    if categoria:
+        filtros += " AND r.categoria=?"
+        params.append(categoria)
+    if division:
+        filtros += " AND r.division=?"
+        params.append(division)
+    params.append(limit)
+    rows = conn.execute(f"""
+        SELECT j.id as jugador_id, j.nombre as jugador,
+               j.posicion_principal as posicion, j.numero_camiseta as numero,
+               e.nombre as equipo, r.categoria, r.division,
+               SUM(sj.touchdowns) as total_tds,
+               SUM(sj.yardas_pase + sj.yardas_tierra) as total_yardas,
+               SUM(sj.intercepciones_atrapadas) as total_int,
+               COUNT(DISTINCT sj.partido_id) as partidos_jugados
+        FROM estadisticas_jugador sj
+        JOIN jugadores j ON j.id = sj.jugador_id
+        JOIN registros r ON r.id = sj.registro_id
+        JOIN equipos e ON e.id = r.equipo_id
+        WHERE r.temporada_id = ? {filtros}
+        GROUP BY j.id, r.id
+        ORDER BY total_tds DESC, total_yardas DESC
+        LIMIT ?
+    """, params).fetchall()
+    conn.close()
+    return {"temporada_id": temporada_id, "jugadores": [_row(r) for r in rows]}
+
+
+@estadisticas_router.get("/mvp/jornada/{jornada_id}")
+def mvp_jornada(jornada_id: int):
+    """MVP de la jornada: jugador con más TDs + desempate por yardas."""
+    conn = get_conn()
+    row = conn.execute("""
+        SELECT j.id as jugador_id, j.nombre as jugador,
+               j.posicion_principal as posicion,
+               e.nombre as equipo, r.categoria, r.division,
+               SUM(sj.touchdowns) as total_tds,
+               SUM(sj.yardas_pase + sj.yardas_tierra) as total_yardas,
+               SUM(sj.intercepciones_atrapadas) as total_int
+        FROM estadisticas_jugador sj
+        JOIN partidos p ON p.id = sj.partido_id
+        JOIN jugadores j ON j.id = sj.jugador_id
+        JOIN registros r ON r.id = sj.registro_id
+        JOIN equipos e ON e.id = r.equipo_id
+        WHERE p.jornada_id = ?
+        GROUP BY j.id, r.id
+        ORDER BY total_tds DESC, total_yardas DESC
+        LIMIT 1
+    """, (jornada_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(404, "Sin estadísticas de jugadores para esta jornada")
+    return {"jornada_id": jornada_id, "mvp": _row(row)}
+
+
 @estadisticas_router.get("/top/{temporada_id}")
 def stats_top(temporada_id: int, categoria: Optional[str] = None, division: Optional[str] = None):
     """Ranking de equipos por temporada: touchdowns, yardas totales."""
