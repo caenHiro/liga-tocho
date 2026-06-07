@@ -695,6 +695,93 @@ def stats_partido(pid: int):
     return [dict(r) for r in rows]
 
 
+class EstadisticasJugadorIn(BaseModel):
+    partido_id: int
+    jugador_id: int
+    registro_id: int
+    touchdowns: int = 0
+    puntos_extra: int = 0
+    intercepciones_lanzadas: int = 0
+    intercepciones_atrapadas: int = 0
+    yardas_pase: int = 0
+    yardas_tierra: int = 0
+
+
+@stats_router.post("/jugador")
+def registrar_stats_jugador(body: EstadisticasJugadorIn):
+    """Registra o actualiza estadísticas individuales de un jugador en un partido."""
+    conn = get_conn()
+    conn.execute("""
+        INSERT INTO estadisticas_jugador
+            (partido_id, jugador_id, registro_id, touchdowns, puntos_extra,
+             intercepciones_lanzadas, intercepciones_atrapadas, yardas_pase, yardas_tierra)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(partido_id, jugador_id) DO UPDATE SET
+            touchdowns=excluded.touchdowns,
+            puntos_extra=excluded.puntos_extra,
+            intercepciones_lanzadas=excluded.intercepciones_lanzadas,
+            intercepciones_atrapadas=excluded.intercepciones_atrapadas,
+            yardas_pase=excluded.yardas_pase,
+            yardas_tierra=excluded.yardas_tierra
+    """, (body.partido_id, body.jugador_id, body.registro_id,
+          body.touchdowns, body.puntos_extra, body.intercepciones_lanzadas,
+          body.intercepciones_atrapadas, body.yardas_pase, body.yardas_tierra))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@stats_router.get("/jugadores/{temporada_id}")
+def ranking_jugadores(temporada_id: int, categoria: str | None = None):
+    """Ranking individual de jugadores por temporada. Filtra por categoría opcional."""
+    conn = get_conn()
+    filtro = "AND r.categoria=?" if categoria else ""
+    params = (temporada_id, categoria) if categoria else (temporada_id,)
+    rows = conn.execute(f"""
+        SELECT j.id, j.nombre, j.curp, e.nombre as equipo, r.categoria, r.division,
+               COALESCE(SUM(ej.touchdowns), 0)               as touchdowns,
+               COALESCE(SUM(ej.puntos_extra), 0)             as puntos_extra,
+               COALESCE(SUM(ej.intercepciones_atrapadas), 0) as intercepciones,
+               COALESCE(SUM(ej.yardas_pase), 0)              as yardas_pase,
+               COALESCE(SUM(ej.yardas_tierra), 0)            as yardas_tierra,
+               COUNT(DISTINCT ej.partido_id)                 as partidos_jugados
+        FROM estadisticas_jugador ej
+        JOIN jugadores j ON j.id = ej.jugador_id
+        JOIN registros r ON r.id = ej.registro_id
+        JOIN equipos e ON e.id = r.equipo_id
+        WHERE r.temporada_id=? {filtro}
+        GROUP BY j.id, r.id
+        ORDER BY touchdowns DESC, yardas_pase DESC, yardas_tierra DESC
+        LIMIT 50
+    """, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@stats_router.get("/mvp/jornada/{jornada_id}")
+def mvp_jornada(jornada_id: int):
+    """MVP de la jornada: jugador con más TDs, desempate por yardas."""
+    conn = get_conn()
+    row = conn.execute("""
+        SELECT j.nombre, j.curp, e.nombre as equipo,
+               COALESCE(SUM(ej.touchdowns), 0)   as touchdowns,
+               COALESCE(SUM(ej.yardas_pase), 0)  as yardas_pase,
+               COALESCE(SUM(ej.yardas_tierra), 0) as yardas_tierra,
+               COUNT(DISTINCT ej.partido_id)       as partidos
+        FROM estadisticas_jugador ej
+        JOIN jugadores j ON j.id = ej.jugador_id
+        JOIN registros r ON r.id = ej.registro_id
+        JOIN equipos e ON e.id = r.equipo_id
+        JOIN partidos p ON p.id = ej.partido_id
+        WHERE p.jornada_id = ?
+        GROUP BY j.id
+        ORDER BY touchdowns DESC, yardas_pase DESC, yardas_tierra DESC
+        LIMIT 1
+    """, (jornada_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else {"mvp": None}
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # NOTIFICACIONES OLLAMA (generación de mensajes para QBs)
 # ════════════════════════════════════════════════════════════════════════════
@@ -799,12 +886,134 @@ Escribe en español mexicano informal. Sin disclaimers."""
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# PORTAL JUGADOR — Vista pública por CURP: solicitudes + equipos
+# ════════════════════════════════════════════════════════════════════════════
+
+jugador_portal_router = APIRouter(prefix="/api/portal-jugador", tags=["portal-jugador"])
+
+
+@jugador_portal_router.get("/{curp}")
+def portal_jugador(curp: str):
+    """Jugador entra con su CURP y ve sus solicitudes + equipos activos."""
+    curp = curp.upper().strip()
+    conn = get_conn()
+    jug = conn.execute("SELECT * FROM jugadores WHERE curp=? AND activo=1", (curp,)).fetchone()
+    if not jug:
+        conn.close()
+        raise HTTPException(404, "No existe ningún jugador registrado con ese CURP")
+    jid = jug["id"]
+
+    solicitudes = conn.execute("""
+        SELECT sv.id, sv.estado, sv.created_at, sv.registro_id,
+               e.nombre as equipo, r.categoria, r.division,
+               t.nombre as temporada, t.anio
+        FROM solicitudes_vinculacion sv
+        JOIN registros r ON r.id=sv.registro_id
+        JOIN equipos e ON e.id=r.equipo_id
+        JOIN temporadas t ON t.id=r.temporada_id
+        WHERE sv.jugador_id=?
+        ORDER BY sv.estado='pendiente' DESC, sv.created_at DESC
+    """, (jid,)).fetchall()
+
+    equipos = conn.execute("""
+        SELECT i.id as inscripcion_id, i.registro_id, i.numero, i.posicion,
+               e.nombre as equipo, r.categoria, r.division,
+               t.nombre as temporada, t.anio, t.estado as temporada_estado
+        FROM inscripciones i
+        JOIN registros r ON r.id=i.registro_id
+        JOIN equipos e ON e.id=r.equipo_id
+        JOIN temporadas t ON t.id=r.temporada_id
+        WHERE i.jugador_id=? AND i.activo=1
+        ORDER BY t.anio DESC
+    """, (jid,)).fetchall()
+    conn.close()
+
+    return {
+        "jugador": _row(jug),
+        "solicitudes": [dict(r) for r in solicitudes],
+        "equipos_activos": [dict(r) for r in equipos],
+    }
+
+
+class RespuestaSolicitudIn(BaseModel):
+    accion: str  # 'aceptar' | 'rechazar'
+
+
+@jugador_portal_router.patch("/solicitudes/{sid}")
+def responder_solicitud(sid: int, curp: str, body: RespuestaSolicitudIn):
+    """Jugador acepta o rechaza una solicitud de vinculación (autenticado por CURP)."""
+    if body.accion not in ("aceptar", "rechazar"):
+        raise HTTPException(422, "accion debe ser 'aceptar' o 'rechazar'")
+    curp = curp.upper().strip()
+    conn = get_conn()
+
+    sol = conn.execute("""
+        SELECT sv.*, j.curp as jugador_curp
+        FROM solicitudes_vinculacion sv
+        JOIN jugadores j ON j.id=sv.jugador_id
+        WHERE sv.id=?
+    """, (sid,)).fetchone()
+    _or_404(sol, "Solicitud no encontrada")
+
+    if sol["jugador_curp"] != curp:
+        conn.close()
+        raise HTTPException(403, "CURP no corresponde a esta solicitud")
+    if sol["estado"] != "pendiente":
+        conn.close()
+        raise HTTPException(409, f"La solicitud ya fue {sol['estado']}")
+
+    nuevo_estado = "aceptada" if body.accion == "aceptar" else "rechazada"
+    conn.execute(
+        "UPDATE solicitudes_vinculacion SET estado=?, updated_at=datetime('now') WHERE id=?",
+        (nuevo_estado, sid),
+    )
+
+    if nuevo_estado == "aceptada":
+        # Crear inscripción real
+        try:
+            conn.execute(
+                "INSERT INTO inscripciones (jugador_id, registro_id) VALUES (?,?)",
+                (sol["jugador_id"], sol["registro_id"]),
+            )
+        except Exception:
+            pass  # Si ya existe (UNIQUE), ignorar
+
+    conn.commit()
+    conn.close()
+    return {"id": sid, "estado": nuevo_estado}
+
+
+@jugador_portal_router.delete("/desvincular/{inscripcion_id}")
+def desvincular_jugador(inscripcion_id: int, curp: str):
+    """Jugador se elimina de un equipo (autenticado por CURP)."""
+    curp = curp.upper().strip()
+    conn = get_conn()
+    insc = conn.execute("""
+        SELECT i.*, j.curp as jugador_curp
+        FROM inscripciones i
+        JOIN jugadores j ON j.id=i.jugador_id
+        WHERE i.id=?
+    """, (inscripcion_id,)).fetchone()
+    _or_404(insc, "Inscripción no encontrada")
+
+    if insc["jugador_curp"] != curp:
+        conn.close()
+        raise HTTPException(403, "CURP no corresponde a esta inscripción")
+
+    conn.execute("UPDATE inscripciones SET activo=0 WHERE id=?", (inscripcion_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # APP — registrar routers
 # ════════════════════════════════════════════════════════════════════════════
 
 for router in [temporadas_router, canchas_router, equipos_router,
                registros_router, jugadores_router, partidos_router,
-               tabla_router, calendario_router, stats_router, notif_router]:
+               tabla_router, calendario_router, stats_router, notif_router,
+               jugador_portal_router]:
     app.include_router(router)
 
 
